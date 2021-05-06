@@ -1,7 +1,7 @@
 #: by David Thierry
 using JuMP
 using Clp
-tHorz = 25
+tHorz = 2
 m = Model()
 
 
@@ -45,7 +45,7 @@ m = Model()
 
 @variable(m, 0 <= vCapDac)
 
-@variable(m, 0 <= a0[1:tHorz])  # We could generalize this for any number of hours.
+@variable(m, 0 <= a0[0:tHorz])  # We could generalize this for any number of hours.
 @variable(m, 0 <= a1[0:tHorz])
 #@variable(m, 0 <= a2[1:tHorz])
 
@@ -55,8 +55,8 @@ m = Model()
 @variable(m, 0 <= sF[0:tHorz])
 @variable(m, 0 <= sS[0:tHorz])
 
-@variable(m, 0 <= vAbs[1:tHorz])
-@variable(m, 0 <= vReg[1:tHorz])
+@variable(m, 0 <= vAbs[0:tHorz])
+@variable(m, 0 <= vReg[0:tHorz])
 
 @variable(m, 0 <= eCo2StoreDac[1:tHorz])
 @variable(m, 0 <= eCo2CapDac[1:tHorz])
@@ -115,11 +115,11 @@ pCo2TranspPrice = 0.1
 
 # Constraints
 # 1
-@constraint(m, capCombTurEq[i = 1:tHorz], vPowCombTurb[i] <= vCapCombTurb)
+@constraint(m, capCombTurIn[i = 1:tHorz], vPowCombTurb[i] <= vCapCombTurb)
 # 2
-@constraint(m, capSteamTurbEq[i = 1:tHorz], ePowSteamTurb[i] <= vCapSteamTurb)
+@constraint(m, capSteamTurbIn[i = 1:tHorz], ePowSteamTurb[i] <= vCapSteamTurb)
 # 3
-@constraint(m, capTransmIntercEq[i = 1:tHorz], ePowOut[i] <= vCapTransInter)
+@constraint(m, capTransmIntercIn[i = 1:tHorz], ePowOut[i] <= vCapTransInter)
 # 4
 @constraint(m, fuelEq[i = 1:tHorz], eFuel[i] == pHeatRateCombTur * vPowCombTurb[i])
 # 5
@@ -162,16 +162,17 @@ pCo2TranspPrice = 0.1
 # v2 of the model.
 @constraint(m, a0Eq[i = 1:tHorz], a0[i] == vAbs[i])
 @constraint(m, aR0Eq[i = 1:tHorz], aR0[i] == vReg[i])
-@constraint(m, a1dEq[i = 1:tHorz - 1], a1[i + 1] == a0[i])
-@constraint(m, storeFeq[i = 1:tHorz - 1], sF[i + 1] == sF[i] - vAbs[i] + aR0[i])
-@constraint(m, storeSeq[i = 1:tHorz - 1], sS[i + 1] == sS[i] - vReg[i] + a1[i])
+@constraint(m, a1dEq[i = 0:tHorz - 1], a1[i + 1] == a0[i])
+@constraint(m, storeFeq[i = 0:tHorz - 1], sF[i + 1] == sF[i] - vAbs[i] + aR0[i])
+@constraint(m, storeSeq[i = 0:tHorz - 1], sS[i + 1] == sS[i] - vReg[i] + a1[i])
 # 21
-@constraint(m, capDacEq, sF[0] + sS[0] == vCapDac / pSorbCo2Cap)
+#@constraint(m, capDacEq, sF[0] + sS[0] == vCapDac / pSorbCo2Cap)
+@constraint(m, capDacEq, sF[0] == vCapDac / pSorbCo2Cap)
 # 22
 @constraint(m, icA1Eq, a1[0] == 0.)
 # @constraint(m, icA2Eq, aR1[0] == 0.)
-@constraint(m, icSfEq, sF[0] == 100.)
-@constraint(m, icSsEq, sS[0] == 100.)
+#@constraint(m, icSfEq, sF[0] == 100.)
+@constraint(m, icSsEq, sS[0] == 0.)
 # 23
 @constraint(m, co2StoreDacEq[i = 1:tHorz], eCo2StoreDac[i] == pSorbCo2Cap * sS[i])
 # 24
@@ -193,23 +194,50 @@ pCo2TranspPrice = 0.1
 
 @constraint(m, co2VentEq[i = 1:tHorz], eCo2Vent[i] == vCo2PccVent[i] + eCo2DacVent[i])
 
-@expression(m, eObjfExpr, pCostInvCombTurb * vCapCombTurb + pCostInvSteaTurb * vCapSteamTurb
-                           + pCostInvTransInter * vCapTransInter + pCostInvPcc * vCapPcc
-                           + pCostInvDac * vCapDac + pCostInvComp * vCapComp
-                           + sum(pCostFuel * eFuel[i] + pEmissionPrice * eCo2Vent[i] + pCo2TranspPrice * eCo2Comp[i] for i in 1:tHorz))
+rnum = rand(Float64, tHorz)
+
+@constraint(m, epwIn[i = 1:tHorz], ePowOut[i] >= 1 * rnum[i])
+#@expression(m, eObjfExpr, pCostInvCombTurb * vCapCombTurb + pCostInvSteaTurb * vCapSteamTurb
+#                           + pCostInvTransInter * vCapTransInter + pCostInvPcc * vCapPcc
+#                           + pCostInvDac * vCapDac + pCostInvComp * vCapComp
+#                           + sum(pCostFuel * eFuel[i] + pEmissionPrice * eCo2Vent[i] + pCo2TranspPrice * eCo2Comp[i] for i in 1:tHorz))
+@expression(m, eObjfExpr, sum(pCostFuel * eFuel[i] + pEmissionPrice * eCo2Vent[i] + pCo2TranspPrice * eCo2Comp[i] for i in 1:tHorz))
 #@objective(m, Min, eobjf)
 @objective(m, Min, eObjfExpr)
 
 set_optimizer(m, Clp.Optimizer)
-set_optimizer_attribute(m, "LogLevel", 4)
+set_optimizer_attribute(m, "LogLevel", 3)
 set_optimizer_attribute(m, "PresolveType", 1)
+
+# set_start_value(vCapCombTurb, 3.)
+# set_start_value(vCapSteamTurb, 2.)
+# set_start_value(vCapTransInter, 5.)
+# set_start_value(vCapPcc, 5.)
+# set_start_value(vCapDac, 4.)
+# set_start_value(vCapComp, 8.)
+
+fix(vCapCombTurb, 3., force = true)
+fix(vCapSteamTurb, 2., force = true)
+fix(vCapTransInter, 5., force = true)
+fix(vCapPcc, 5., force = true)
+fix(vCapDac, 4., force = true)
+fix(vCapComp, 8., force = true)
+
+fix(a0[0], 0., force = true)
+fix(aR0[0], 0., force = true)
+fix(vAbs[0], 0., force = true)
+fix(vReg[0], 0., force = true)
 
 optimize!(m)
 println(termination_status(m))
+
 println(value.(ePowOut)[:])
 println(value.(sF)[:])
 println(value.(sS)[:])
 println(value.(a1)[:])
+f = open("model.lp", "w")
+print(f, m)
+close(f)
 
 write_to_file(
     m,
