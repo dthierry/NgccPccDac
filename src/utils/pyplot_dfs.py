@@ -19,6 +19,7 @@ def main():
 
     remain_frs = a + g - c
     remain_sat = b + e - f
+    
     h = df.index
 
 
@@ -37,10 +38,10 @@ def main():
     ax.set_ylabel("Mass of Sorbent")
     plt.savefig("bars.png")
     plt.close()
-    sys.exit()
+    #sys.exit()
     df = pd.read_csv("../mods/df_pow.csv")
 
-    h = [i for i in range(df.shape[0])]
+    h = df.index
 
     fig, ax = plt.subplots()
     ax.plot(h, df["Demand"], marker="o", label="Demand")
