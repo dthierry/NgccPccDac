@@ -9,50 +9,104 @@ using CSV
 tHorz = 24
 m = Model()
 
+## Parameters
+#: Gas Turbine
+aPowGasTeLoad = 0.005
+aFuelEload = 0.0001
+aEmissFactEload = 0.002
+aAuxRateGas = 1e-03
+#: Steam Turbine Parameters
+aPowHpEload = 1e-01
+aPowIpEload = 1e-02
+aPowLpEload = 1e-03
+
+aDacSteaEload = 1.
+aAuxRateStea = 1e-08
+aCcRebDutyEload = 1e-04
+
+#
+#
+aSteaUseRatePcc = 0.001
+aPowUseRatePcc = 0.022
+
+aSteaUseRateDacAir = 1e-03
+aSteaUseRateDacFlue = 1e-03
+
+aPowUseRateDacAir = 5e-03
+aPowUseRateDacFlue = 2e-03
+
+
+aCo2PccCapRate = .1
+aSorbCo2CapFlue = 0.1
+pSorbCo2CapAir = 1e-06
+aPowUseRateDac = 0.0001
+
+aPowUseRateComp = 0.001
+#
+cCostInvCombTurb = 1e+02
+cCostInvSteaTurb = 1e+02
+cCostInvTransInter = 1e+02
+cCostInvPcc = 1e+02
+cCostInvDac = 1e+03
+cCostInvComp = 1e+01
+
+# Cost parameters.
+cCostFuel = 1e+02
+pEmissionPrice = 1e+04
+pCo2TranspPrice = 1e+01
+pPowBasePrice = 1e+01
+pCo2Credit = 1e+00
+
+
 #vCapCombTurb = 3.
-vCapSteamTurb = 2.
+vCapSteaTurb = 2.
 vCapTransInter = 5.
 vCapPcc = 20.
 vCapComp = 1000.
 
 rnum = rand(Float64, tHorz)
-
+@variable(m, 60 <= yGasTelecLoad[0:tHorz - 1] <= 100)
 #@variable(m, 0 <= vCapCombTurb)
-#@variable(m, 0 <= vPowCombTurb[0:tHorz - 1] <= vCapCombTurb)
-@variable(m, 0 <= vPowCombTurb[0:tHorz - 1])
+#@variable(m, 0 <= xPowGasTur[0:tHorz - 1] <= vCapCombTurb)
+@variable(m, 0 <= xPowGasTur[0:tHorz - 1])
 
-#@variable(m, 0 <= ePowSteamTurb[0:tHorz - 1] <= vCapSteamTurb)
-@variable(m, 0 <= ePowSteamTurb[0:tHorz - 1])
-#@variable(m, 0 <= vCapSteamTurb)
+#@variable(m, 0 <= xPowSteaTur[0:tHorz - 1] <= vCapSteaTurb)
+#@variable(m, 0 <= vCapSteaTurb)
 
-#@variable(m, rnum[i+1] <= ePowOut[i = 0:tHorz - 1] <= vCapTransInter)
-@variable(m, ePowOut[i = 0:tHorz - 1] >= rnum[i + 1])
-@variable(m, 0 <= ePowGross[0:tHorz - 1])
-#@variable(m, 0 <= ePowOut[i = 0:tHorz - 1])
-@variable(m, 0 <= ePowHp[0:tHorz - 1])
-@variable(m, 0 <= ePowIp[0:tHorz - 1])
+#@variable(m, rnum[i+1] <= xPowOut[i = 0:tHorz - 1] <= vCapTransInter)
+#@variable(m, xPowOut[i = 0:tHorz - 1] >= rnum[i + 1])
+@variable(m, 0 <= xPowGross[0:tHorz - 1])
+@variable(m, 0 <= xPowOut[ 0:tHorz - 1])
+
+@variable(m, xAuxPowGasT[0:tHorz - 1] >= 0)
+
+# Steam Turbine
+@variable(m, 0 <= xPowHp[0:tHorz - 1])
+@variable(m, 0 <= xPowIp[0:tHorz - 1])
+@variable(m, 0 <= xPowLp[0:tHorz - 1])
 #@variable(m, 0 <= vCapTransInter)
 
-@variable(m, 0 <= eFuel[0:tHorz - 1])
+@variable(m, 0 <= xFuel[0:tHorz - 1])
+@variable(m, 0 <= xCo2Fuel[0:tHorz - 1])
 
-@variable(m, 0 <= eSteamIpLp[0:tHorz - 1])
-@variable(m, 0 <= eSteamLp1[0:tHorz - 1])
+@variable(m, 0 <= xCcRebDuty[0:tHorz - 1])
+@variable(m, 0 <= xDacSteaDuty[0:tHorz - 1])
 
-@variable(m, 0 <= ePowLp1[0:tHorz - 1])
-@variable(m, 0 <= ePowLp2[0:tHorz - 1])
+@variable(m, 0 <= xPowSteaTur[0:tHorz - 1])
 
-@variable(m, 0 <= eCo2Fuel[0:tHorz - 1])
+@variable(m, 0 <= xAuxPowSteaT[0:tHorz - 1])
 
 # Pcc
-#@variable(m, 0 <= eCo2CapPcc[0:tHorz - 1] <= vCapPcc)
-@variable(m, 0 <= eCo2CapPcc[0:tHorz - 1])
-@variable(m, 0 <= eSteamUsePcc[0:tHorz - 1])
-@variable(m, 0 <= ePowUsePcc[0:tHorz - 1])
-@variable(m, 0 <= eCo2PccOut[0:tHorz - 1])
+#@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1] <= vCapPcc)
+@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1])
+@variable(m, 0 <= xSteaUsePcc[0:tHorz - 1])
+@variable(m, 0 <= xPowUsePcc[0:tHorz - 1])
+@variable(m, 0 <= xCo2PccOut[0:tHorz - 1])
 #@variable(m, 0 <= vCo2PccVent[0:tHorz - 1] <= 0.1)
 @variable(m, 0 <= vCo2PccVent[0:tHorz - 1])
 #vCo2PccVent = 0.0
-@variable(m, 0 <= eCo2DacFlueIn[0:tHorz - 1])
+@variable(m, 0 <= xCo2DacFlueIn[0:tHorz - 1])
+@variable(m, 0 <= xPccSteaSlack[0:tHorz - 1])
 
 # Dac-Flue
 @variable(m, 0 <= a0Flue[0:tHorz - 1])  # We could generalize this for any number of hours.
@@ -67,11 +121,11 @@ rnum = rand(Float64, tHorz)
 @variable(m, 0 <= vAbsFlue[0:tHorz - 1])  # Input
 @variable(m, 0 <= vRegFlue[0:tHorz - 1])  # Input
 
-@variable(m, 0 <= eCo2StorDacFlue[0:tHorz - 1])
-@variable(m, 0 <= eCo2CapDacFlue[0:tHorz - 1])
-@variable(m, eSteaUseDacFlue[0:tHorz - 1] >= 0)
-@variable(m, 0 <= ePowUseDacFlue[0:tHorz - 1])
-@variable(m, 0 <= eCo2DacVentFlue[0:tHorz - 1])
+@variable(m, 0 <= xCo2StorDacFlue[0:tHorz - 1])
+@variable(m, 0 <= xCo2CapDacFlue[0:tHorz - 1])
+@variable(m, 0 <= xSteaUseDacFlue[0:tHorz - 1])
+@variable(m, 0 <= xPowUseDacFlue[0:tHorz - 1])
+@variable(m, 0 <= xCo2DacVentFlue[0:tHorz - 1])
 
 # Dac-Air
 @variable(m, 0 <= a0Air[0:tHorz - 1])  # We could generalize this for any number of hours.
@@ -86,112 +140,88 @@ rnum = rand(Float64, tHorz)
 @variable(m, 0 <= vAbsAir[0:tHorz - 1])  # Input
 @variable(m, 0 <= vRegAir[0:tHorz - 1])  # Input
 
-@variable(m, 0 <= eCo2StorDacAir[0:tHorz - 1])
-@variable(m, 0 <= eCo2CapDacAir[0:tHorz - 1])
-@variable(m, eSteaUseDacAir[0:tHorz - 1] >= 0)
-@variable(m, 0 <= ePowUseDacAir[0:tHorz - 1])
+@variable(m, 0 <= xCo2StorDacAir[0:tHorz - 1])
+@variable(m, 0 <= xCo2CapDacAir[0:tHorz - 1])
+@variable(m, xSteaUseDacAir[0:tHorz - 1] >= 0)
+@variable(m, 0 <= xPowUseDacAir[0:tHorz - 1])
+
+@variable(m, 0 <= xDacSteaSlack[0:tHorz - 1])
+
 
 # CO2 compression
-@variable(m, 0 <= eCo2Comp[0:tHorz - 1])
-#@variable(m, 0 <= ePowUseComp[0:tHorz - 1] <= vCapComp)
-@variable(m, 0 <= ePowUseComp[0:tHorz - 1])
+@variable(m, 0 <= xCo2Comp[0:tHorz - 1])
+#@variable(m, 0 <= xPowUseComp[0:tHorz - 1] <= vCapComp)
+@variable(m, 0 <= xPowUseComp[0:tHorz - 1])
 #@variable(m, 0 <= vCapComp)
-@variable(m, eCo2Vent[0:tHorz - 1])  # This used to be only positive.
+@variable(m, xCo2Vent[0:tHorz - 1])  # This used to be only positive.
 
-# Parameters
-pHeatRateCombTur = 1.
-# pSteamRate = 1.
-pEmissFactor = 20.1
-
-# pCo2CapRatePcc = 1.
-
-#: Turbine Parameters
-pFuelPowHp = 1.
-pFuelPowIp = 0.4
-pFuelSteamIpLp = 1.
-pHeatRateLp1 = 11.11
-pFuelPowLp = 0.09
-#
-#
-pSteamUseRatePcc = 0.001
-pPowUseRatePcc = 0.022
-
-pSteaUseRateDacAir = 1e-03
-pSteaUseRateDacFlue = 1e-03
-
-pPowUseRateDacAir = 5e-03
-pPowUseRateDacFlue = 2e-03
-
-pHeatRateSteamTur = 1.
-
-pCo2PccCapRate = .1
-pSorbCo2CapFlue = 0.1
-pSorbCo2CapAir = 1e-06
-pPowUseRateDac = 0.0001
-
-pPowUseRateComp = 0.001
-#
-
-pCostInvCombTurb = 1e+02
-pCostInvSteaTurb = 1e+02
-pCostInvTransInter = 1e+02
-pCostInvPcc = 1e+02
-pCostInvDac = 1e+03
-pCostInvComp = 1e+01
-
-# Cost parameters.
-pCostFuel = 1e+02
-pEmissionPrice = 1e+04
-pCo2TranspPrice = 1e+01
-pPowBasePrice = 1e+01
-pCo2Credit = 1e+00
+@variable(m, xAuxPow[0:tHorz - 1])
 
 # Constraints
-# 1
-#@constraint(m, capCombTurIn[i = 0:tHorz - 1], vPowCombTurb[i] <= vCapCombTurb)
-# 2
-# @constraint(m, capSteamTurbIn[i = 0:tHorz - 1], ePowSteamTurb[i] <= vCapSteamTurb)
-# 3
-# @constraint(m, capTransmIntercIn[i = 0:tHorz - 1], ePowOut[i] <= vCapTransInter)
+# Gas Turbine
+@constraint(m, powGasTur[i = 0:tHorz - 1], 
+            xPowGasTur[i] == aPowGasTeLoad * yGasTelecLoad[i]
+           )
 # 4
-@constraint(m, fuelEq[i = 0:tHorz - 1], eFuel[i] == pHeatRateCombTur * vPowCombTurb[i])
+@constraint(m, fuelEq[i = 0:tHorz - 1], 
+            xFuel[i] == aFuelEload * yGasTelecLoad[i]
+           )
 # 5
-@constraint(m, co2FuelEq[i = 0:tHorz - 1], eCo2Fuel[i] == pEmissFactor * vPowCombTurb[i])
-@constraint(m, powGrossEq[i = 0:tHorz - 1], ePowGross[i] == vPowCombTurb[i] + ePowSteamTurb[i])
-# 6
-@constraint(m, powOutEq[i = 0:tHorz - 1], ePowOut[i] ==  ePowGross[i] - ePowUsePcc[i] - ePowUseDacFlue[i] - ePowUseDacAir[i] - ePowUseComp[i])
+@constraint(m, co2FuelEq[i = 0:tHorz - 1], 
+            xCo2Fuel[i] == aEmissFactEload * yGasTelecLoad[i]
+           )
 
+@constraint(m, auxPowGasT[i = 0:tHorz - 1],
+            xAuxPowGasT[i] == aAuxRateGas * yGasTelecLoad[i])
+# 6
 # Steam
 # 7a
-@constraint(m, powHpEq[i = 0:tHorz - 1], ePowHp[i] == pFuelPowHp * eFuel[i])
+@constraint(m, powHpEq[i = 0:tHorz - 1], 
+            xPowHp[i] == aPowHpEload * yGasTelecLoad[i])
 # 7b
-@constraint(m, powIpEq[i = 0:tHorz - 1], ePowIp[i] == pFuelPowIp * eFuel[i])
+@constraint(m, powIpEq[i = 0:tHorz - 1], 
+            xPowIp[i] == aPowIpEload * yGasTelecLoad[i])
 
-# 8
-@constraint(m, stamIpLpEq[i = 0:tHorz - 1], eSteamIpLp[i] == pFuelSteamIpLp * eFuel[i])
-# 9
-@constraint(m, steamLp1[i = 0:tHorz - 1], eSteamLp1[i] == eSteamIpLp[i] - eSteamUsePcc[i] - eSteaUseDacFlue[i] -eSteaUseDacAir[i])
-# 10
-@constraint(m, powLp1Eq[i = 0:tHorz - 1], ePowLp1[i] == eSteamLp1[i] / pHeatRateLp1)
 # 11
-@constraint(m, powLp2Eq[i = 0:tHorz - 1], ePowLp2[i] == pFuelPowLp * eFuel[i])
+@constraint(m, powLpEq[i = 0:tHorz - 1], 
+            xPowLp[i] == aPowLpEload * yGasTelecLoad[i])
 # 12
-@constraint(m, powerSteamEq[i = 0:tHorz - 1], ePowSteamTurb[i] == ePowHp[i] + ePowIp[i] + ePowLp1[i] + ePowLp2[i])
+@constraint(m, powerSteaEq[i = 0:tHorz - 1], 
+            xPowSteaTur[i] == xPowHp[i] + xPowIp[i] + xPowLp[i])
+
+@constraint(m, ccRebDutyEq[i = 0:tHorz - 1],
+            xCcRebDuty[i] == aCcRebDutyEload * yGasTelecLoad[i])
+
+@constraint(m, dacSteaDutyEq[i = 0:tHorz - 1],
+            xDacSteaDuty[i] == aDacSteaEload * yGasTelecLoad[i])
+
+@constraint(m, auxPowSteaTEq[i = 0:tHorz - 1],
+            xAuxPowSteaT[i] == aAuxRateStea * yGasTelecLoad[i])
+
+
 
 # PCC
 # 13
-#@constraint(m, co2CapPccEq[i = 0:tHorz - 1], eCo2CapPcc[i] == pCo2PccCapRate * eCo2Fuel[i])
-@constraint(m, co2CapPccEq[i = 0:tHorz - 1], eCo2CapPcc[i] == 0.5 * eCo2Fuel[i])
+#@constraint(m, co2CapPccEq[i = 0:tHorz - 1], xCo2CapPcc[i] == aCo2PccCapRate * xCo2Fuel[i])
+@constraint(m, co2CapPccEq[i = 0:tHorz - 1], 
+            xCo2CapPcc[i] == 0.5 * xCo2Fuel[i])
 # 14
-@constraint(m, co2PccOutEq[i = 0:tHorz - 1], eCo2PccOut[i] == eCo2Fuel[i] - eCo2CapPcc[i])
+@constraint(m, co2PccOutEq[i = 0:tHorz - 1], 
+            xCo2PccOut[i] == xCo2Fuel[i] - xCo2CapPcc[i])
 # 15
-@constraint(m, co2DacFlueInEq[i = 0:tHorz - 1], eCo2DacFlueIn[i] == eCo2PccOut[i] - vCo2PccVent[i])
+@constraint(m, co2DacFlueInEq[i = 0:tHorz - 1], 
+            xCo2DacFlueIn[i] == xCo2PccOut[i] - vCo2PccVent[i])
 # 16
-# @constraint(m, co2CapPccIn[i = 0:tHorz - 1], eCo2CapPcc[i] <= vCapPcc)
+# @constraint(m, co2CapPccIn[i = 0:tHorz - 1], xCo2CapPcc[i] <= vCapPcc)
 # 17
-@constraint(m, steamUsePccEq[i = 0:tHorz - 1], eSteamUsePcc[i] == pSteamUseRatePcc * eCo2CapPcc[i])
+@constraint(m, steamUsePccEq[i = 0:tHorz - 1], 
+            xSteaUsePcc[i] == aSteaUseRatePcc * xCo2CapPcc[i])
 # 18
-@constraint(m, powerUsePccEq[i = 0:tHorz - 1], ePowUsePcc[i] == pPowUseRatePcc * eCo2CapPcc[i])
+@constraint(m, powerUsePccEq[i = 0:tHorz - 1], 
+            xPowUsePcc[i] == aPowUseRatePcc * xCo2CapPcc[i])
+
+@constraint(m, pccSteaSlack[i = 0:tHorz - 1], 
+            xPccSteaSlack[i] == xCcRebDuty[i] - xSteaUsePcc[i])
 
 # DAC-Flue
 @constraint(m, a0FlueEq[i = 0:tHorz - 1], a0Flue[i] == vAbsFlue[i])
@@ -209,15 +239,15 @@ pCo2Credit = 1e+00
 #
 @constraint(m, icSsFlueEq, sSflue[0] == 0.)
 # 23
-@constraint(m, co2StorDacFlueEq[i = 0:tHorz - 1], eCo2StorDacFlue[i] == pSorbCo2CapFlue * sSflue[i])
+@constraint(m, co2StorDacFlueEq[i = 0:tHorz - 1], xCo2StorDacFlue[i] == aSorbCo2CapFlue * sSflue[i])
 # 24
-@constraint(m, co2CapDacFlueEq[i = 0:tHorz - 1], eCo2CapDacFlue[i] == pSorbCo2CapFlue * aR1Flue[i])
+@constraint(m, co2CapDacFlueEq[i = 0:tHorz - 1], xCo2CapDacFlue[i] == aSorbCo2CapFlue * aR1Flue[i])
 # 25
-@constraint(m, steamUseDacFlueEq[i = 0:tHorz - 1], eSteaUseDacFlue[i] == pSteaUseRateDacFlue * eCo2CapDacFlue[i])
+@constraint(m, steamUseDacFlueEq[i = 0:tHorz - 1], xSteaUseDacFlue[i] == aSteaUseRateDacFlue * xCo2CapDacFlue[i])
 # 26
-@constraint(m, powUseDacFlueEq[i = 0:tHorz - 1], ePowUseDacFlue[i] == pPowUseRateDacFlue * eCo2CapDacFlue[i])
+@constraint(m, powUseDacFlueEq[i = 0:tHorz - 1], xPowUseDacFlue[i] == aPowUseRateDacFlue * xCo2CapDacFlue[i])
 # Equal to the amount vented, at least in flue mode.
-@constraint(m, co2DacFlueVentEq[i = 0:tHorz - 1], eCo2DacVentFlue[i] == eCo2DacFlueIn[i] - eCo2CapDacFlue[i])
+@constraint(m, co2DacFlueVentEq[i = 0:tHorz - 1], xCo2DacVentFlue[i] == xCo2DacFlueIn[i] - xCo2CapDacFlue[i])
 
 # DAC-Air
 # Bluntly assume we can just take CO2 from air in pure form.
@@ -236,30 +266,50 @@ pCo2Credit = 1e+00
 #
 @constraint(m, icSsAirEq, sSair[0] == 0.)
 # 
-@constraint(m, co2StorDacAirEq[i = 0:tHorz - 1], eCo2StorDacAir[i] == pSorbCo2CapAir * sSair[i])
+@constraint(m, co2StorDacAirEq[i = 0:tHorz - 1], xCo2StorDacAir[i] == pSorbCo2CapAir * sSair[i])
 # Money, baby.
-@constraint(m, co2CapDacAirEq[i = 0:tHorz - 1], eCo2CapDacAir[i] == pSorbCo2CapAir * aR1Air[i])
+@constraint(m, co2CapDacAirEq[i = 0:tHorz - 1], xCo2CapDacAir[i] == pSorbCo2CapAir * aR1Air[i])
 # 
-@constraint(m, steamUseDacAirEq[i = 0:tHorz - 1], eSteaUseDacAir[i] == pSteaUseRateDacAir * eCo2CapDacAir[i])
+@constraint(m, steamUseDacAirEq[i = 0:tHorz - 1], xSteaUseDacAir[i] == aSteaUseRateDacAir * xCo2CapDacAir[i])
 # 
-@constraint(m, powUseDacAirEq[i = 0:tHorz - 1], ePowUseDacAir[i] == pPowUseRateDacAir * eCo2CapDacAir[i])
+@constraint(m, powUseDacAirEq[i = 0:tHorz - 1], xPowUseDacAir[i] == aPowUseRateDacAir * xCo2CapDacAir[i])
+
+
+@constraint(m, dacSteaSlackEq[i = 0:tHorz - 1], 
+            xDacSteaSlack[i] == xDacSteaDuty[i] - xSteaUseDacFlue[i] - xSteaUseDacAir[i])
+
 
 # Co2 Compression
 # 27
-@constraint(m, co2CompEq[i = 0:tHorz - 1], eCo2Comp[i] == eCo2CapPcc[i])
+@constraint(m, co2CompEq[i = 0:tHorz - 1], xCo2Comp[i] == xCo2CapPcc[i])
 # 28
-@constraint(m, powUseCompEq[i = 0:tHorz - 1], ePowUseComp[i] == pPowUseRateComp * eCo2Comp[i])
+@constraint(m, powUseCompEq[i = 0:tHorz - 1], xPowUseComp[i] == aPowUseRateComp * xCo2Comp[i])
 # 29
-# @constraint(m, powUseCompIn[i = 0:tHorz - 1], ePowUseComp[i] <= vCapComp)
+# @constraint(m, powUseCompIn[i = 0:tHorz - 1], xPowUseComp[i] <= vCapComp)
 
-# @constraint(m, co2VentEq[i = 0:tHorz - 1], eCo2Vent[i] == vCo2PccVent[i] + eCo2DacVentFlue[i])
-@constraint(m, co2VentEq[i = 0:tHorz - 1], eCo2Vent[i] == vCo2PccVent[i] + eCo2DacVentFlue[i] - eCo2CapDacAir[i])
+# @constraint(m, co2VentEq[i = 0:tHorz - 1], xCo2Vent[i] == vCo2PccVent[i] + xCo2DacVentFlue[i])
+@constraint(m, co2VentEq[i = 0:tHorz - 1], xCo2Vent[i] == vCo2PccVent[i] + xCo2DacVentFlue[i] - xCo2CapDacAir[i])
 
-@expression(m, eObjfExpr, sum(pCostFuel * eFuel[i] + 
-                              pEmissionPrice * eCo2Vent[i] + 
-                              pCo2TranspPrice * eCo2Comp[i] - 
-                              pPowBasePrice * ePowOut[i] for i in 0:tHorz - 1))
-#@expression(m, eObjfExpr, sum(-ePowOut[i] for i in 0:tHorz - 1))
+
+## Overall
+#
+#
+@constraint(m, powGrossEq[i = 0:tHorz - 1], 
+            xPowGross[i] == xPowGasTur[i] + xPowSteaTur[i]
+           )
+@constraint(m, auxPowEq[i = 0:tHorz - 1],
+            xAuxPow[i] == xAuxPowGasT[i] + xAuxPowSteaT[i])
+@constraint(m, powOutEq[i = 0:tHorz - 1], 
+            xPowOut[i] == xPowGross[i] - xPowUsePcc[i] - xPowUseDacFlue[i] - xPowUseDacAir[i] - xPowUseComp[i] - xAuxPow[i]
+           )
+
+
+
+@expression(m, eObjfExpr, sum(cCostFuel * xFuel[i] + 
+                              pEmissionPrice * xCo2Vent[i] + 
+                              pCo2TranspPrice * xCo2Comp[i] - 
+                              pPowBasePrice * xPowOut[i] for i in 0:tHorz - 1))
+#@expression(m, eObjfExpr, sum(-xPowOut[i] for i in 0:tHorz - 1))
 
 @objective(m, Min, eObjfExpr)
 
@@ -279,14 +329,14 @@ write_to_file(m, "lp_mk0.mps")
 
 # Design decisions.
 # vCapCombTurb
-# vCapSteamTurb
+# vCapSteaTurb
 # vCapTransInter
 # vCapPcc
 # vCapDac
 # vCapComp
 #
 # Raw materials.
-# eFuel
+# xFuel
 # sF0
 # sS0
 #
@@ -297,7 +347,7 @@ write_to_file(m, "lp_mk0.mps")
 ## vCo2PccVent * 2N
 
 # Actual variables
-# vPowCombTurb * 2
+# xPowGasTur * 2
 
 # Co2 Data Frame
 df_co = DataFrame(Symbol("Co2Fuel") => Float64[], # Pairs.
@@ -312,66 +362,72 @@ df_co = DataFrame(Symbol("Co2Fuel") => Float64[], # Pairs.
                   Symbol("Co2Vent") => Float64[],
                  )
 for i in 0:tHorz - 1
-    push!(df_co, (value(eCo2Fuel[i]),
-               value(eCo2CapPcc[i]),
-               value(eCo2PccOut[i]), 
+    push!(df_co, (
+                  value(xCo2Fuel[i]),
+               value(xCo2CapPcc[i]),
+               value(xCo2PccOut[i]), 
                value(vCo2PccVent[i]), 
-               value(eCo2DacFlueIn[i]), 
-               value(eCo2StorDacFlue[i]), 
-               value(eCo2CapDacFlue[i]), 
-               value(eCo2CapDacAir[i]), 
-               value(eCo2DacVentFlue[i]), 
-               value(eCo2Vent[i])))
+               value(xCo2DacFlueIn[i]), 
+               value(xCo2StorDacFlue[i]), 
+               value(xCo2CapDacFlue[i]), 
+               value(xCo2CapDacAir[i]), 
+               value(xCo2DacVentFlue[i]), 
+               value(xCo2Vent[i])))
 end
 
 # Power Data Frame.
-df_pow = DataFrame(Symbol("vPowCombTurb") => Float64[], # Pairs.
-                  Symbol("PowSteamTurb") => Float64[],
+df_pow = DataFrame(Symbol("PowGasTur") => Float64[], # Pairs.
+                  Symbol("PowSteaTurb") => Float64[],
                   Symbol("PowHp") => Float64[],
                   Symbol("PowIp") => Float64[],
-                  Symbol("PowLp1") => Float64[],
-                  Symbol("PowLp2") => Float64[],
+                  Symbol("PowLp") => Float64[],
                   Symbol("PowUsePcc") => Float64[],
                   Symbol("PowUseDacFlue") => Float64[],
                   Symbol("PowUseDacAir") => Float64[],
                   Symbol("PowUseComp") => Float64[],
+                  Symbol("xAuxPowGasT") => Float64[],
+                  Symbol("xAuxPowSteaT") => Float64[],
                   Symbol("PowGross") => Float64[],
                   Symbol("PowOut") => Float64[],
+                  Symbol("yGasTelecLoad") => Float64[],
                   Symbol("Demand") => Float64[]
                  )
 for i in 0:tHorz-1
     push!(df_pow, (
-                   value(vPowCombTurb[i]),
-                   value(ePowSteamTurb[i]),
-                   value(ePowHp[i]), 
-                   value(ePowIp[i]), 
-                   value(ePowLp1[i]), 
-                   value(ePowLp2[i]), 
-                   value(ePowUsePcc[i]), 
-                   value(ePowUseDacFlue[i]), 
-                   value(ePowUseDacAir[i]), 
-                   value(ePowUseComp[i]),
-                   value(ePowGross[i]),
-                   value(ePowOut[i]),
+                   value(xPowGasTur[i]),
+                   value(xPowSteaTur[i]),
+                   value(xPowHp[i]), 
+                   value(xPowIp[i]), 
+                   value(xPowLp[i]), 
+                   value(xPowUsePcc[i]), 
+                   value(xPowUseDacFlue[i]), 
+                   value(xPowUseDacAir[i]), 
+                   value(xPowUseComp[i]),
+                   value(xAuxPowGasT[i]),
+                   value(xAuxPowSteaT[i]),
+                   value(xPowGross[i]),
+                   value(xPowOut[i]),
+                   value(yGasTelecLoad[i]),
                    rnum[i + 1]
                   ))
 end
 
-df_steam = DataFrame(Symbol("SteamIpLp") => Float64[], # Pairs.
-                     Symbol("SteamLp1") => Float64[],
-                     Symbol("SteamUsePccFlue") => Float64[],
-                     Symbol("SteamUseDacFlue") => Float64[],
-                     Symbol("SteamUseDacAir") => Float64[],
+df_steam = DataFrame(
+                     Symbol("xCcRebDuty") => Float64[],
+                     Symbol("xDacSteaDuty") => Float64[],
+                     Symbol("SteaUsePccFlue") => Float64[],
+                     Symbol("SteaUseDacFlue") => Float64[],
+                     Symbol("SteaUseDacAir") => Float64[],
                      Symbol("Fuel") => Float64[]
                     )
 for i in 0:tHorz-1
     push!(df_steam, (
-                     value(eSteamIpLp[i]),
-                     value(eSteamLp1[i]),
-                     value(eSteamUsePcc[i]),
-                     value(eSteaUseDacFlue[i]),
-                     value(eSteaUseDacAir[i]),
-                     value(eFuel[i])
+                     value(xCcRebDuty[i]),
+                     value(xDacSteaDuty[i]),
+                     value(xSteaUsePcc[i]),
+                     value(xSteaUseDacFlue[i]),
+                     value(xSteaUseDacAir[i]),
+                     value(xFuel[i])
                     ),
          )
 end
