@@ -82,7 +82,7 @@ formulasSteamT = FormulaTerm[]
 #
 fm0st = @formula(LP_Turbine_Power_kW ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasSteamT, fm0st)
-fm1st = @formula(Condenser_Duty_MMBTUhr ~ Percent_of_Gas_Turbine_Electrical_Load)
+fm1st = @formula(Duty_of_CC_Reboiler_MMBTUhr ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasSteamT, fm1st)
 fm2st = @formula(DAC_Steam_Duty_MMBTUhr ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasSteamT, fm2st)
