@@ -2,10 +2,10 @@ using DataFrames
 using CSV
 using GLM
 using Lathe
-using Plots
 
 
-df_gas = DataFrame(CSV.File("../resources/data1.csv"))
+#df_gas = DataFrame(CSV.File("../resources/data1.csv"))
+df_gas = DataFrame(CSV.File("../resources/data1_v1.csv"))
 
 colnames = Symbol[]
 for i in string.(names(df_gas))
@@ -24,14 +24,12 @@ end
 
 rename!(df_gas, colnames)
 println(names(df_gas))
-scplot = scatter(df_gas["Percent_of_Gas_Turbine_Electrical_Load"],
-                 df_gas["Electrical_Power_MW"])
-
 formulasGasT = FormulaTerm[]
 
 fm0 = @formula(Electrical_Power_MW ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasGasT, fm0)
-fm1 = @formula(Natural_Gas_Flow_lbhr ~ Percent_of_Gas_Turbine_Electrical_Load)
+#fm1 = @formula(Natural_Gas_Flow_lbhr ~ Percent_of_Gas_Turbine_Electrical_Load)
+fm1 = @formula(HHV_Heat_Input_MMBTUhr ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasGasT, fm1)
 fm2 = @formula(CO2_Emissions_lbhr ~ Percent_of_Gas_Turbine_Electrical_Load)
 push!(formulasGasT, fm2)
