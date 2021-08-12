@@ -17,12 +17,11 @@ df_steam_full_steam = DataFrame(CSV.File("../reg/steam_coeffs_v3.csv"))
 df_pow_c = DataFrame(CSV.File("../resources/FLECCSPriceSeriesData.csv"))
 df_ng_c = DataFrame(CSV.File("../resources/natural_gas_price.csv"))
 
-#: Load random floats
-df_rf = DataFrame(CSV.File("../resources/1year_2c.csv"))
+
 
 #: Assign parameters
-#: Gas parameters
 
+#: Gas parameters
 bPowGasTeLoad = df_gas[1, 2]
 aPowGasTeLoad = df_gas[1, 3]
 
@@ -44,6 +43,7 @@ aAuxRateGas = df_gas[6, 3] / 1000
 #: Steam params
 bCcRebDutyEload = df_steam_full_steam[2, 2]
 aCcRebDutyEload = df_steam_full_steam[2, 3]
+
 #: Full power gives you the min steam
 bDacSteaBaseEload = df_steam_full_power[3, 2]  
 aDacSteaBaseEload = df_steam_full_power[3, 3]
@@ -89,22 +89,58 @@ println(aSteaUseRatePcc)
 aPowUseRatePcc = 0.047 # MWh/tonne CO2 (trimeric)
 
 #: Horizon Lenght
-tHorz = 23
-rnum = df_rf[1:tHorz, 1]
-# USD/MWh
-# pow_price =(df_pow_c[!, "MiNg_150_ERCOT"])  # USD/MWh
+tHorz = 24 * 364 - 1
 
-pow_price =(df_pow_c[!, "MiNg_150_PJM-W"])  # USD/MWh
+
+#: Slices per hour
+hSlice = 4  # the number of slices of a given hour
+# There are tHorz - 1 slices
+# Each slice has hSlice points, but only states have the 0th
+
+# If there's several slices in an hour we kind of need to divide the
+# hourly-based quantities :(
+sliceFact = 1/hSlice
+
+aPowGasTeLoad = aPowGasTeLoad * sliceFact
+bPowGasTeLoad = bPowGasTeLoad * sliceFact
+aFuelEload = aFuelEload * sliceFact
+bFuelEload = bFuelEload * sliceFact
+aEmissFactEload = aEmissFactEload * sliceFact
+bEmissFactEload = bEmissFactEload * sliceFact
+aAuxRateGas = aAuxRateGas * sliceFact
+bAuxRateGas = bAuxRateGas * sliceFact
+aPowHpEload = aPowHpEload * sliceFact
+bPowHpEload = bPowHpEload * sliceFact
+aPowIpEload = aPowIpEload * sliceFact
+bPowIpEload = bPowIpEload * sliceFact
+aCcRebDutyEload = aCcRebDutyEload * sliceFact
+bCcRebDutyEload = bCcRebDutyEload * sliceFact
+aDacSteaBaseEload = aDacSteaBaseEload * sliceFact
+bDacSteaBaseEload = bDacSteaBaseEload * sliceFact
+aSideSteaEload = aSideSteaEload * sliceFact
+bSideSteaEload = bSideSteaEload * sliceFact
+aAuxRateStea = aAuxRateStea * sliceFact
+bAuxRateStea = bAuxRateStea * sliceFact
+
+
+# USD/MWh
+pow_price =(df_pow_c[!, "MiNg_150_ERCOT"])  # USD/MWh
+
+# pow_price =(df_pow_c[!, "MiNg_150_PJM-W"])  # USD/MWh
 #: Natural gas price
 # 0.056 lb/cuft STP
 #std_w_ng1000cuft = 0.056 * 1000
 #cNgPerLbUsd = (3.5 / 1000) / 0.056
+
+# Cost of natural gas
 cNgPerMmbtu = 3.5
+
 m = Model()
-#
+
 # aPowUseRateComp = 0.279751187  # MWh/tonneCo2
 aPowUseRateComp = 0.076 # MWh/tonneCo2 (Trimeric)
-#
+
+# Other costs
 cCostInvCombTurb = 1e+02
 cCostInvSteaTurb = 1e+02
 cCostInvTransInter = 1e+02
@@ -128,15 +164,13 @@ cCostInvDacUsdtCo2yr = 750
 cCostFixedDacUsdtCo2yr = 25
 cCostVariableDacUsdtCo2yr = 12
 
-hSlice = 4  # the number of slices of a given hour
-# There are tHorz - 1 slices
-# Each slice has hSlice points, but only states have the 0th
+
 @variable(m, 60 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100)
 @variable(m, 0 <= xPowGasTur[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xPowGross[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xPowOut[0:tHorz, 0:hSlice-1])
 
-@variable(m, xAuxPowGasT[0:tHorz, 0:hSlice-1] >= 0)
+@variable(m, 0 <= xAuxPowGasT[0:tHorz, 0:hSlice-1])
 
 # Steam Turbine
 @variable(m, 0 <= xPowHp[0:tHorz, 0:hSlice-1])
@@ -156,7 +190,6 @@ hSlice = 4  # the number of slices of a given hour
 @variable(m, 0 <= xSideSteaDac[0:tHorz, 0:hSlice-1])
 
 #
-
 @variable(m, 0 <= xPowSteaTur[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xAuxPowSteaT[0:tHorz, 0:hSlice-1])
 
@@ -210,7 +243,7 @@ hSlice = 4  # the number of slices of a given hour
 @variable(m, 0 <= xDacSteaSlack[0:tHorz, 0:hSlice-1])
 # DAC hourly capacity
 #
-@variable(m, 0 <= xCo2DacHr[0:tHorz])
+
 
 
 # CO2 compression
@@ -224,8 +257,8 @@ hSlice = 4  # the number of slices of a given hour
 # Constraints
 # Gas Turbine
 @constraint(m, powGasTur[i = 0:tHorz, j = 0:hSlice-1], 
-            xPowGasTur[i, j] == aPowGasTeLoad * yGasTelecLoad[i, j] 
-            + bPowGasTeLoad
+            xPowGasTur[i, j] == (aPowGasTeLoad * yGasTelecLoad[i, j] 
+            + bPowGasTeLoad)
            )
 # 
 @constraint(m, fuelEq[i = 0:tHorz, j = 0:hSlice-1], 
@@ -360,7 +393,6 @@ hSlice = 4  # the number of slices of a given hour
 #@constraint(m, endSsFlueEq, xSflue[tHorz] == 0.)
 
 #
-#
 #These dac related variables must start at 0 and end at 1-hslice
 @constraint(m, co2CapDacFlueEq[i = 0:tHorz, j = 0:hSlice-1], 
             xCo2CapDacFlue[i, j] == aSorbCo2CapFlue * xR1Flue[i, j]
@@ -434,13 +466,8 @@ hSlice = 4  # the number of slices of a given hour
 
 @constraint(m, dacSteaSlackEq[i = 0:tHorz, j=0:hSlice-1], 
             xDacSteaSlack[i, j] == xDacSteaDuty[i, j] 
-            - xCo2DacHr[i]
-           )
-
-@constraint(m, dacsteahrEq[i = 0:tHorz], 
-            xCo2DacHr[i] ==
-            sum(xSteaUseDacFlue[i, j] + xSteaUseDacAir[i, j] 
-                for j in 0:hSlice-1)
+            - xSteaUseDacFlue[i, j] 
+            - xSteaUseDacAir[i, j]
            )
 
 
@@ -448,10 +475,9 @@ hSlice = 4  # the number of slices of a given hour
 # 
 @constraint(m, co2CompEq[i = 0:tHorz, j = 0:hSlice-1], 
             xCo2Comp[i, j] == xCo2CapPcc[i, j] 
-            + sum(
-                  xCo2CapDacFlue[i, k] + xCo2CapDacAir[i, k] 
-                  for k in 0:hSlice-1
-                 )
+            + xCo2CapDacFlue[i, j] 
+            + xCo2CapDacAir[i, j]
+
            )
 # 
 @constraint(m, powUseCompEq[i = 0:tHorz, j = 0:hSlice-1], 
@@ -464,10 +490,7 @@ hSlice = 4  # the number of slices of a given hour
 # xCo2Vent[i] == vCo2PccVent[i] + xCo2DacVentFlue[i])
 @constraint(m, co2VentEq[i = 0:tHorz, j = 0:hSlice-1], 
             xCo2Vent[i, j] == vCo2PccVent[i, j] 
-            + sum(
-                  xCo2DacVentFlue[i, k] - xCo2CapDacAir[i, k] 
-                  for k in 0:hSlice-1
-                 )
+            + (xCo2DacVentFlue[i, j] - xCo2CapDacAir[i, j])
            )
 
 ## Overall
@@ -482,10 +505,8 @@ hSlice = 4  # the number of slices of a given hour
 @constraint(m, powOutEq[i = 0:tHorz, j = 0:hSlice-1], 
             xPowOut[i, j] == xPowGross[i, j] 
             - xPowUsePcc[i, j]
-            - sum(
-                  xPowUseDacFlue[i, k] + xPowUseDacAir[i, k] 
-                  for k in 0:hSlice-1
-                 )
+            - xPowUseDacFlue[i, j] 
+            - xPowUseDacAir[i, j] 
             - xPowUseComp[i, j] 
             - xAuxPow[i, j]
            )
@@ -524,29 +545,32 @@ hSlice = 4  # the number of slices of a given hour
 @constraint(m, 
             contr1air[i = 1:tHorz], xR1Air[i, 0] == xR1Air[i - 1, hSlice])
 
-
-@expression(m, eObjfExpr, sum(
-                              cNgPerMmbtu * xFuel[i, hSlice-1]
-                              + cEmissionPrice * xCo2Vent[i, hSlice-1]
-                              + cCo2TranspPrice * xCo2Comp[i, hSlice-1]
-                              - pow_price[i+ 1] * xPowOut[i, hSlice-1]
-                              for i in 0:tHorz
-                             )
-           )
+# Objective function expression
+@expression(m, eObjfExpr, 
+    sum(cNgPerMmbtu * sum(xFuel[i, j] for j in 0:hSlice-1)
+        + cEmissionPrice * sum(xCo2Vent[i, j] for j in 0:hSlice-1) 
+        + cCo2TranspPrice * sum(xCo2Comp[i, j] for j in 0:hSlice-1)
+        - pow_price[i + 1] * sum(xPowOut[i, j] for j in 0:hSlice-1)
+        for i in 0:tHorz)
+        )
 
 @objective(m, Min, eObjfExpr)
-println("The number of variables: ")
+
+print("The number of variables\t")
 println(num_variables(m))
-global n
+print("The number of constraints\n")
+
 n = 0
 for i in list_of_constraint_types(m)
     global n
     println(num_constraints(m, i[1], i[2]))
     n += num_constraints(m, i[1], i[2])
 end
+
+
 println()
-println("The number of constraints: ", n)
-println()
+
+# Set optimizer options
 set_optimizer(m, Clp.Optimizer)
 set_optimizer_attribute(m, "LogLevel", 3)
 set_optimizer_attribute(m, "PresolveType", 1)
@@ -559,21 +583,328 @@ print(f, m)
 close(f)
 
 #write_to_file(m, "lp_mk0.mps")
-write_to_file(m, "lp_mk10.lp", format=MOI.FileFormats.FORMAT_LP)
+#write_to_file(m, "lp_mk10.lp", format=MOI.FileFormats.FORMAT_LP)
 
 #format::MOI.FileFormats.FileFormat = MOI.FileFormats.FORMAT_AUTOMATIC
 
-# Raw materials.
-# xFuel
-# sF0
-# sS0
-#
-# penalties
-# vCo2Vent
+# Co2 Data Frame
+df_co = DataFrame(Symbol("Co2Fuel") => Float64[], # Pairs.
+                  Symbol("Co2CapPcc") => Float64[],
+                  Symbol("Co2PccOut") => Float64[],
+                  Symbol("vCo2PccVent") => Float64[],
+                  Symbol("Co2DacFlueIn") => Float64[],
+                  Symbol("Co2CapDacFlue") => Float64[],
+                  Symbol("Co2CapDacAir") => Float64[],
+                  Symbol("Co2DacVentFlue") => Float64[],
+                  Symbol("Co2Vent") => Float64[],
+                 )
 
-## vCo2PccVent * 2N
+# Co2 / hSlice
+for i in 0:tHorz
+    co2fuel = 0
+    co2pcc = 0
+    co2pccout = 0
+    co2pccvent = 0
+    co2dacfluein = 0
+    co2dacflue = 0
+    co2dacair = 0
+    co2dacventflue = 0
+    co2vent = 0
+    for j in 0:hSlice-1
+        co2fuel += value(xCo2Fuel[i, j])
+        co2pcc += value(xCo2CapPcc[i, j])
+        co2pccout += value(xCo2PccOut[i, j])
+        co2pccvent += value(vCo2PccVent[i, j])
+        co2dacfluein += value(xCo2DacFlueIn[i, j])
+        co2dacflue += value(xCo2CapDacFlue[i, j])
+        co2dacair += value(xCo2CapDacAir[i, j])
+        co2dacventflue += value(xCo2DacVentFlue[i, j])
+        co2vent += value(xCo2Vent[i, j])
+        #=push!(df_co, (
+            value(xCo2Fuel[i, j]),
+            value(xCo2CapPcc[i, j]),
+            value(xCo2PccOut[i, j]), 
+            value(vCo2PccVent[i, j]), 
+            value(xCo2DacFlueIn[i, j]), 
+            value(xCo2CapDacFlue[i, j]), 
+            value(xCo2CapDacAir[i, j]), 
+            value(xCo2DacVentFlue[i, j]), 
+            value(xCo2Vent[i, j])))=#
+    end
+    push!(df_co,(
+        value(co2fuel),
+        value(co2pcc),
+        value(co2pccout),
+        value(co2pccvent),
+        value(co2dacfluein),
+        value(co2dacflue),
+        value(co2dacair),
+        value(co2dacventflue),
+        value(co2vent),
+        ))
+end
 
-# Actual variables
-# xPowGasTur * 2
+# Power Data Frame.
+df_pow = DataFrame(
+                  Symbol("PowGasTur") => Float64[], # Pairs.
+                  Symbol("PowSteaTurb") => Float64[],
+                  Symbol("PowHp") => Float64[],
+                  Symbol("PowIp") => Float64[],
+                  Symbol("PowLp") => Float64[],
+                  Symbol("PowUsePcc") => Float64[],
+                  Symbol("PowUseDacFlue") => Float64[],
+                  Symbol("PowUseDacAir") => Float64[],
+                  Symbol("PowUseComp") => Float64[],
+                  Symbol("AuxPowGasT") => Float64[],
+                  Symbol("AuxPowSteaT") => Float64[],
+                  Symbol("PowGross") => Float64[],
+                  Symbol("PowOut") => Float64[],
+                  Symbol("yGasTelecLoad") => Float64[],
+                 )
 
+
+# Pow / hSlice
+for i in 0:tHorz
+    powgastur = 0
+    powsteatur = 0
+    powhp = 0
+    powip = 0
+    powlp = 0
+    powusepcc = 0
+    powusedacflue = 0
+    powusedacair = 0
+    powusecomp = 0
+    auxpowgast = 0
+    auxpowsteat = 0
+    powgross = 0
+    powout = 0
+    ygastelecload = value(yGasTelecLoad[i, hSlice-1])
+    for j in 0:hSlice-1
+        powgastur += value(xPowGasTur[i, j])
+        powsteatur += value(xPowSteaTur[i, j])
+        powhp += value(xPowHp[i, j])
+        powip += value(xPowIp[i, j])
+        powlp += value(xPowLp[i, j])
+        powusepcc += value(xPowUsePcc[i, j])
+        powusedacflue += value(xPowUseDacFlue[i, j])
+        powusedacair += value(xPowUseDacAir[i, j])
+        powusecomp += value(xPowUseComp[i, j])
+        auxpowgast += value(xAuxPowGasT[i, j])
+        auxpowsteat += value(xAuxPowSteaT[i, j])
+        powgross += value(xPowGross[i, j])
+        powout += value(xPowOut[i, j])
+        #ygastelecload += value(yGasTelecLoad[i, j])
+    #=push!(df_pow, (
+            value(xPowGasTur[i, j]),
+            value(xPowSteaTur[i, j]),
+            value(xPowHp[i, j]), 
+            value(xPowIp[i, j]), 
+            value(xPowLp[i, j]), 
+            value(xPowUsePcc[i, j]), 
+            value(xPowUseDacFlue[i, j]), 
+            value(xPowUseDacAir[i, j]), 
+            value(xPowUseComp[i, j]),
+            value(xAuxPowGasT[i, j]),
+            value(xAuxPowSteaT[i, j]),
+            value(xPowGross[i, j]),
+            value(xPowOut[i, j]),
+            value(yGasTelecLoad[i, j]),
+                  ))=#
+    end
+    push!(df_pow, (
+        powgastur,
+        powsteatur,
+        powhp,
+        powip,
+        powlp,
+        powusepcc,
+        powusedacflue,
+        powusedacair,
+        powusecomp,
+        auxpowgast,
+        auxpowsteat,
+        powgross,
+        powout,
+        ygastelecload
+        ))
+end
+
+
+# Steam DataFrame
+df_steam = DataFrame(
+                     Symbol("CcRebDuty") => Float64[],
+                     Symbol("SteaUsePcc") => Float64[],
+                     Symbol("PccSteaSlack") => Float64[],
+                     Symbol("DacSteaDuty") => Float64[],
+                     Symbol("SteaUseDacFlue") => Float64[],
+                     Symbol("SteaUseDacAir") => Float64[],
+                     Symbol("DacSteaSlack") => Float64[],
+                     Symbol("SideStea") => Float64[],
+                     Symbol("DacSteaBaseDuty") => Float64[],
+                     Symbol("SideSteaDac") => Float64[],
+                     Symbol("Fuel") => Float64[]
+                    )
+
+# Steam / hSlice
+for i in 0:tHorz
+    ccrebduty = 0
+    steausepcc = 0
+    pccsteaslack = 0
+    dacsteaduty = 0
+    steausedacflue = 0
+    steausedacair = 0
+    dacsteaslack = 0
+    sidesteam = 0
+    dacsteabaseduty = 0
+    sidesteadac = 0
+    xfuel = 0
+    for j in 0:hSlice-1
+        ccrebduty += value(xCcRebDuty[i, j])
+        steausepcc += value(xSteaUsePcc[i, j])
+        pccsteaslack += value(xPccSteaSlack[i, j])
+        dacsteaduty += value(xDacSteaDuty[i, j])
+        steausedacflue += value(xSteaUseDacFlue[i, j])
+        steausedacair += value(xSteaUseDacAir[i, j])
+        dacsteaslack += value(xDacSteaSlack[i, j])
+        sidesteam += value(xSideSteam[i, j])
+        dacsteabaseduty += value(xDacSteaBaseDuty[i, j])
+        sidesteadac += value(xSideSteaDac[i, j])
+        xfuel += value(xFuel[i, j])
+    end
+    #=push!(df_steam, (
+            value(xCcRebDuty[i, j]),
+            value(xSteaUsePcc[i, j]),
+            value(xPccSteaSlack[i, j]),
+            value(xDacSteaDuty[i, j]),
+            value(xSteaUseDacFlue[i, j]),
+            value(xSteaUseDacAir[i, j]),
+            value(xDacSteaSlack[i, j]),
+            value(xSideSteam[i, j]),
+            value(xDacSteaBaseDuty[i, j]),
+            value(xSideSteaDac[i, j]),
+            value(xFuel[i, j])
+                    ),
+         )=#
+    push!(df_steam, 
+        (
+            ccrebduty,
+            steausepcc,
+            pccsteaslack,
+            dacsteaduty,
+            steausedacflue,
+            steausedacair,
+            dacsteaslack,
+            sidesteam,
+            dacsteabaseduty,
+            sidesteadac,
+            xfuel
+            ))
+end
+
+# DAC-flue DataFrame
+df_dac_flue = DataFrame(
+    :time => Float64[],
+    :xFflue => Float64[],
+    :xSflue => Float64[],
+    :xA0Flue => Float64[],
+    :xA1Flue => Float64[],
+    :xA2Flue => Float64[],
+    :xR0Flue => Float64[],
+    :xR1Flue => Float64[]
+    )
+
+
+for i in 0:tHorz
+    for j in 0:hSlice-1
+        currtime = i + j * sliceFact
+        push!(df_dac_flue,(
+            currtime,
+            value(xFflue[i, j]), 
+            value(xSflue[i, j]),
+            value(xA0Flue[i, j]), 
+            value(xA1Flue[i, j]), 
+            value(xA2Flue[i, j]),
+            value(xR0Flue[i, j]), 
+            value(xR1Flue[i, j]))
+        )
+    end
+end
+
+# DAC-air DataFrame
+df_dac_air = DataFrame(
+    :time => Float64[],
+    :xFair => Float64[],
+    :xSair => Float64[],
+    :xA0Air => Float64[],
+    :xA1Air => Float64[],
+    :xA2Air => Float64[],
+    :xR0Air => Float64[],
+    :xR1Air => Float64[])
+
+for i in 0:tHorz
+    for j in 0:hSlice-1
+        currtime = i + j * sliceFact
+        push!(df_dac_air,(
+            currtime,
+            value(xFair[i, j]), 
+            value(xSair[i, j]),
+            value(xA0Air[i, j]), 
+            value(xA1Air[i, j]), 
+            value(xA2Air[i, j]),
+            value(xR0Air[i, j]), 
+            value(xR1Air[i, j])))
+    end
+end
+
+
+df_pow_price = DataFrame(
+                         price = Float64[]
+                        )
+for i in 0:tHorz
+    push!(df_pow_price, (pow_price[i + 1],))
+end
+
+
+
+# Cost DataFrame
+df_cost = DataFrame(
+                    cNG = Float64[],
+                    cCo2Em = Float64[],
+                    cTransp = Float64[],
+                    PowSales = Float64[]
+                   )
+
+for i in 0:tHorz
+    cng = 0
+    cco = 0
+    ctr = 0
+    cpow = 0
+    for j in 0:hSlice-1
+        cng += cNgPerMmbtu * value(xFuel[i, j])
+        cco += cEmissionPrice * value(xCo2Vent[i, j])
+        ctr += cCo2TranspPrice * value(xCo2Comp[i, j])
+        cpow += pow_price[i + 1] * value(xPowOut[i, j])
+    end
+    push!(df_cost, (cng, cco, ctr, cpow))
+end
+
+df_time_slice = DataFrame(:time => Float64[])
+
+for i in 0:tHorz
+    for j in 0:hSlice-1
+        currtime = i + j * sliceFact
+        push!(df_time_slice, (currtime, ))
+    end
+end
+
+
+# Write CSV
+CSV.write("df_co.csv", df_co)
+CSV.write("df_pow.csv", df_pow)
+CSV.write("df_steam.csv", df_steam)
+CSV.write("df_dac_flue.csv", df_dac_flue)
+CSV.write("df_dac_air.csv", df_dac_air)
+CSV.write("df_pow_price.csv", df_pow_price)
+CSV.write("df_cost.csv", df_cost)
+CSV.write("df_time_slice.csv", df_time_slice)
 

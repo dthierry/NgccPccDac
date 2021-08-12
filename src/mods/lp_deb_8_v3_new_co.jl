@@ -321,9 +321,11 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
 # 23
 @constraint(m, co2StorDacFlueEq[i = 0:tHorz - 1], xCo2StorDacFlue[i] == aSorbCo2CapFlue * xSflue[i])
 # 24
-@constraint(m, co2CapDacFlueEq[i = 0:tHorz - 1], xCo2CapDacFlue[i] == aSorbCo2CapFlue * xR1Flue[i])
+@constraint(m, co2CapDacFlueEq[i = 0:tHorz - 1], 
+  xCo2CapDacFlue[i] == (aSorbCo2CapFlue * xA1Flue[i]/2 + aSorbCo2CapFlue * xA2Flue[i]/2)
+  )
 # 25
-@constraint(m, steamUseDacFlueEq[i = 0:tHorz - 1], xSteaUseDacFlue[i] == aSteaUseRateDacFlue * xCo2CapDacFlue[i])
+@constraint(m, steamUseDacFlueEq[i = 0:tHorz - 1], xSteaUseDacFlue[i] == aSteaUseRateDacFlue * aSorbCo2CapFlue * xR1Flue[i])
 # 26
 @constraint(m, powUseDacFlueEq[i = 0:tHorz - 1], xPowUseDacFlue[i] == aPowUseRateDacFlue * xCo2CapDacFlue[i])
 # Equal to the amount vented, at least in flue mode.
@@ -357,9 +359,17 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
 #
 @constraint(m, co2StorDacAirEq[i = 0:tHorz - 1], xCo2StorDacAir[i] == aSorbCo2CapAir * xSair[i])
 # Money, baby.
-@constraint(m, co2CapDacAirEq[i = 0:tHorz - 1], xCo2CapDacAir[i] == aSorbCo2CapAir * xR1Air[i])
+@constraint(m, co2CapDacAirEq[i = 0:tHorz - 1], 
+  xCo2CapDacAir[i] == 
+  #aSorbCo2CapAir * xR1Air[i]
+  (aSorbCo2CapAir * xA1Air[i]/2 + aSorbCo2CapAir * xA2Air[i]/2)
+  )
 # 
-@constraint(m, steamUseDacAirEq[i = 0:tHorz - 1], xSteaUseDacAir[i] == aSteaUseRateDacAir * xCo2CapDacAir[i])
+@constraint(m, steamUseDacAirEq[i = 0:tHorz - 1], 
+  xSteaUseDacAir[i] == 
+  #aSteaUseRateDacAir * xCo2CapDacAir[i]
+  aSteaUseRateDacAir * aSorbCo2CapAir * xR1Air[i]
+  )
 # 
 @constraint(m, powUseDacAirEq[i = 0:tHorz - 1], xPowUseDacAir[i] == aPowUseRateDacAir * xCo2CapDacAir[i])
 
