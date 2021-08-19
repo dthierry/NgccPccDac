@@ -11,8 +11,8 @@ import sys
 
 def main():
     
-    hour0 = 5090
-
+    #hour0 = 5090
+    hour0 = 3290
     delta_max = 80
     slice = 4
     delta = delta_max / slice
@@ -473,7 +473,7 @@ def main():
         colors=["crimson"])
 
 
-    ax.set_title("Cost")
+    ax.set_title("Negative Emissions")
     ax.set_xlabel("Hour")
     ax.set_ylabel("USD/hr")
     ax.legend()
@@ -594,7 +594,7 @@ def all_long_halloc():
     plt.close(fig)
 
 if __name__ == "__main__":
-    all_long_loads()
+    #all_long_loads()
     #all_long_profit()
     #all_long_halloc()
     main()
