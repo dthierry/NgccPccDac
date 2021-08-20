@@ -18,7 +18,6 @@ df_pow_c = DataFrame(CSV.File("../resources/FLECCSPriceSeriesData.csv"))
 df_ng_c = DataFrame(CSV.File("../resources/natural_gas_price.csv"))
 
 
-
 #: Assign parameters
 
 #: Gas parameters
@@ -164,18 +163,14 @@ cCostInvDacUsdtCo2yr = 750
 cCostFixedDacUsdtCo2yr = 25
 cCostVariableDacUsdtCo2yr = 12
 
+# 0 for off 2 for other ones.
+extrPoint = Dict(0 => 0, 1 => 0:1, 2 => 0:1)
+@variable(m, 0 <= lambda[0:tHorz, i=0:2, extrPoint[i]] <= 1)
 
-@variable(m, 0 <= lambda0[0:tHorz, 0] <= 1) 
-@variable(m, 0 <= lambda1[0:tHorz, 0:1] <= 1) # This has 2 points
+@variable(m, y[0:tHorz, 0:2], Bin, start = 0)  # On and off
+@variable(m, z[0:tHorz, j1 = 0:2, j2 = 0:2], Bin)
 
-@variable(m, y[0:tHorz, 0:1], Bin, start = 0)  # On and off
-
-for i in 0:tHorz
-    set_start_value(y[i, 0], 1)
-end
-
-@variable(m, xLoad[0:tHorz, 0:1])
-@variable(m, z[0:tHorz, 0:1, 0:1], Bin)
+@variable(m, xLoad[0:tHorz, 0:2])
 
 
 @variable(m, 0 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100)
@@ -275,60 +270,82 @@ end
 # Disjunction 0 (off)
 
 extreme_d_0 = [0]
+extreme_d_1 = [20.0, 50.0]
+extreme_d_2 = [60.0, 100.0]
 
-@constraint(m, cconvx0[i = 0:tHorz],
-    sum(lambda0[i, k] * extreme_d_0[k + 1] for k in 0) ==
-    xLoad[i, 0]  # There is only a single extreme
+ep_list = [extreme_d_0, extreme_d_1, extreme_d_2]
+
+# Convex conbination
+@constraint(m, cConvxEq[i = 0:tHorz, j = 0:2],
+    sum(lambda[i, j, k] * ep_list[j + 1][k + 1] for k in extrPoint[j]) ==
+    xLoad[i, j]  # There is only a single extreme
     )
 
-@constraint(m, slambda0[i = 0:tHorz],
-    sum(lambda0[i, k] for k in 0) == y[i, 0]
+# jth mode
+# Lambda constraint
+@constraint(m, xLambdaEq[i = 0:tHorz, j = 0:2],
+    sum(lambda[i, j, k] for k in extrPoint[j]) == y[i, j]
     )
 
-@constraint(m, bm0[i = 0:tHorz],
-    xLoad[i, 0] <= 100 * y[i, 0]
-    )
-
-
-
-# Disjunction 1 (on)
-
-extreme_d_1 = [60.0, 100.0]
-
-@constraint(m, cconvx1[i = 0:tHorz],
-    sum(lambda1[i, k] * extreme_d_1[k + 1] for k in 0:1) ==
-    xLoad[i, 1]
-    )
-
-@constraint(m, slambda1[i = 0:tHorz],
-    sum(lambda1[i, k] for k in 0:1) == y[i, 1]
-    )
-
-@constraint(m, bm1[i = 0:tHorz],
-    xLoad[i, 1] <= 100 * y[i, 1]
+# Big M
+@constraint(m, bmconEq[i = 0:tHorz, j = 0:2],
+    xLoad[i, j] <= maximum(ep_list[j + 1])* y[i, j]
     )
 
 
 # Overall Disjunction
 
 
-@constraint(m, spr[i = 0:tHorz],
-    yGasTelecLoad[i, 0] == sum(xLoad[i, k] for k in 0:1)
+@constraint(m, gasLeq[i = 0:tHorz],
+    yGasTelecLoad[i, 0] == sum(xLoad[i, j] for j in 0:2)
     )
 
 
-@constraint(m, sy[i = 0:tHorz],
-    sum(y[i, k] for k in 0:1) == 1
+@constraint(m, sumyEq[i = 0:tHorz],
+    sum(y[i, j] for j in 0:2) == 1
     )
 
 # Switch
 
-@constraint(m, switchc[i = 1:tHorz],
-    z[i, 0, 1] - z[i, 1, 0] == y[i, 1] - y[i-1, 1])
+@constraint(m, switchCon[i = 1:tHorz, j = 0:2],
+    sum(z[i, k, j] for k in 0:2) - 
+    sum(z[i, j, k] for k in 0:2) 
+    == y[i, j] - y[i-1, j])
 
-KminOffOn = 24
-@constraint(m, minstay[i = (KminOffOn-1):tHorz],
-    y[i, 1] >= sum(z[i - k, 0, 1] for k in 0:(KminOffOn-1))
+# Forbidden
+
+@constraint(m, forbConEq1[i = 0:tHorz],
+    z[i, 0, 2] == 0)
+
+@constraint(m, forbConEq2[i = 0:tHorz],
+    z[i, 2, 1] == 0)
+
+# Ramp
+rup1 = 10
+rdown1 = 10
+
+
+@constraint(m, 
+    rupload1[i = 1:tHorz], 
+    xLoad[i, 1] - xLoad[i-1, 1] <= 
+    rup1 * y[i, 1]
+    )
+
+@constraint(m, 
+    rdownload1[i = 1:tHorz], 
+    xLoad[i - 1, 1] - xLoad[i, 1] <= 
+    rdown1 * y[i, 1]
+    )
+
+# Minimum stay 
+KminOff = [[0, 36, 0], [0, 0, 0], [48, 0, 0]]
+# off to on(1)
+@constraint(m, minstay01[i = (36-1):tHorz],
+    y[i, 1] >= sum(z[i - k, 0, 1] for k in 0:(36-1))
+    )
+# on(2) to off
+@constraint(m, minstay20[i = (48-1):tHorz],
+    y[i, 0] >= sum(z[i - k, 2, 0] for k in 0:(48-1))
     )
 
 
@@ -981,10 +998,18 @@ end
 
 
 df_binary = DataFrame(
-    :yoff => Float64[],
-    :yon => Float64[],
-    :zoffon => Float64[],
-    :zonoff => Float64[],
+    :y0 => Float64[],
+    :y1 => Float64[],
+    :y2 => Float64[],
+    :z00 => Float64[],
+    :z01 => Float64[],
+    :z02 => Float64[],
+    :z10 => Float64[],
+    :z11 => Float64[],
+    :z12 => Float64[],
+    :z20 => Float64[],
+    :z21 => Float64[],
+    :z22 => Float64[],
     )
 
 for i in 0:tHorz
@@ -992,26 +1017,40 @@ for i in 0:tHorz
         (
             value(y[i, 0]),
             value(y[i, 1]),
+            value(y[i, 2]),
+            value(z[i, 0, 0]),
             value(z[i, 0, 1]),
+            value(z[i, 0, 2]),
             value(z[i, 1, 0]),
+            value(z[i, 1, 1]),
+            value(z[i, 1, 2]),
+            value(z[i, 2, 0]),
+            value(z[i, 2, 1]),
+            value(z[i, 2, 2]),
         ))
 end
 
 df_pr = DataFrame(
     :load0 => Float64[], 
     :load1 => Float64[], 
+    :load2 => Float64[], 
     :lambda0 => Float64[], 
     :lambda10 => Float64[],
-    :lambda11 => Float64[]
+    :lambda11 => Float64[],
+    :lambda20 => Float64[],
+    :lambda21 => Float64[]
     )
 
 for i in 0:tHorz
     push!(df_pr, (
         value(xLoad[i, 0]), 
         value(xLoad[i, 1]), 
-        value(lambda0[i, 0]), 
-        value(lambda1[i, 0]),
-        value(lambda1[i, 1])
+        value(xLoad[i, 2]),
+        value(lambda[i, 0, 0]), 
+        value(lambda[i, 1, 0]),
+        value(lambda[i, 1, 1]),
+        value(lambda[i, 2, 0]),
+        value(lambda[i, 2, 1]),
         ))
 end
 

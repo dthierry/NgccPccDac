@@ -478,7 +478,7 @@ def main():
         colors=["crimson"])
 
 
-    ax.set_title("Cost")
+    ax.set_title("Negative Emissions")
     ax.set_xlabel("Hour")
     ax.set_ylabel("USD/hr")
     ax.legend()
@@ -488,12 +488,10 @@ def main():
     plt.close(fig)
 
     fig, ax = plt.subplots()
-    profit = df.loc[:, "PowSales"] 
-    + df.loc[:, "cCo-"] 
-    - df.loc[:, "cCo2Em"] 
-    - df.loc[:, "cNG"] 
-    - df.loc[:, "cTransp"]
-    
+    profit = df.loc[:, "PowSales"] + df.loc[:, "cCo-"] - df.loc[:, "cCo2Em"] - df.loc[:, "cNG"] - df.loc[:, "cTransp"]
+
+    profit.to_csv("profit.csv")
+
     profitp = profit.copy()
     profitp.loc[profitp.iloc[:] < 0] = 0
     profitn = profit.copy()
@@ -562,11 +560,7 @@ def all_long_profit():
 
     df.loc[df.loc[:, "cCo2Em"] < 0, "cCo2Em"] = 0.0
 
-    profit = df.loc[:, "PowSales"] 
-    + df.loc[:, "cCo-"] 
-    - df.loc[:, "cCo2Em"] 
-    - df.loc[:, "cNG"] 
-    - df.loc[:, "cTransp"]
+    profit = df.loc[:, "PowSales"] + df.loc[:, "cCo-"] - df.loc[:, "cCo2Em"] - df.loc[:, "cNG"] - df.loc[:, "cTransp"]
     
     profitp = profit.copy()
     profitp.loc[profitp.iloc[:] < 0] = 0
@@ -579,7 +573,30 @@ def all_long_profit():
     fig, ax = plt.subplots(figsize=(16, 2), dpi=300)
     ax.bar(profitp.index, profitp, color="cornflowerblue", label="gains")
     ax.bar(profitn.index, profitn, color="lightcoral", label="losses")
-    fig.savefig("profit.png")
+
+    ax.legend()
+    ax.set_title("Profit")
+    ax.set_xlabel("Hour")
+    ax.set_ylabel("USD/hr")
+
+    fig.savefig("profit_all.png")
+
+def all_long_halloc():
+    df = pd.read_csv("../mods/df_steam.csv")
+    
+    df["DacTotal"] = df["SteaUseDacFlue"] + df["SteaUseDacAir"]
+
+    fig, ax = plt.subplots(figsize=(16, 2), dpi=300)
+    ax.stackplot(df.index, 
+        df["DacSteaBaseDuty"], df["SideSteaDac"],
+                 labels=["Nominal Heat", "Additional Heat (LP)"],
+                 colors=["pink", "skyblue"])
+    ax.legend()
+    ax.set_xlabel("Hour")
+    ax.set_ylabel("Heat (MMBTU/hr)")
+    ax.set_title("Dac Steam Source")
+    plt.savefig("dacstea_all_long.png", format="png")
+    plt.close(fig)
 
 if __name__ == "__main__":
     #all_long_loads()

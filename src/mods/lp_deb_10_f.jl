@@ -2,7 +2,7 @@
 #: by David Thierry 2021
 #: Set all the eqns to hslice - 1
 using JuMP
-using Cbc
+using Clp
 using DataFrames
 using CSV
 
@@ -89,7 +89,7 @@ println(aSteaUseRatePcc)
 aPowUseRatePcc = 0.047 # MWh/tonne CO2 (trimeric)
 
 #: Horizon Lenght
-tHorz = 1000 - 1
+tHorz = 24 * 364 - 1
 
 
 #: Slices per hour
@@ -165,20 +165,7 @@ cCostFixedDacUsdtCo2yr = 25
 cCostVariableDacUsdtCo2yr = 12
 
 
-@variable(m, 0 <= lambda0[0:tHorz, 0] <= 1) 
-@variable(m, 0 <= lambda1[0:tHorz, 0:1] <= 1) # This has 2 points
-
-@variable(m, y[0:tHorz, 0:1], Bin, start = 0)  # On and off
-
-for i in 0:tHorz
-    set_start_value(y[i, 0], 1)
-end
-
-@variable(m, xLoad[0:tHorz, 0:1])
-@variable(m, z[0:tHorz, 0:1, 0:1], Bin)
-
-
-@variable(m, 0 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100)
+@variable(m, 60 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100)
 @variable(m, 0 <= xPowGasTur[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xPowGross[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xPowOut[0:tHorz, 0:hSlice-1])
@@ -254,6 +241,11 @@ end
 @variable(m, 0 <= xPowUseDacAir[0:tHorz, 0:hSlice-1])
 
 @variable(m, 0 <= xDacSteaSlack[0:tHorz, 0:hSlice-1])
+#
+@variable(m, 0 <= xCo2DacNomYr)
+@variable(m, 0 <= xSorbFreshFlue)
+@variable(m, 0 <= xSorbFreshAir)
+@variable(m, 0 <= xDacCapInv)
 # DAC hourly capacity
 #
 
@@ -268,70 +260,6 @@ end
 @variable(m, 0 <= xAuxPow[0:tHorz, 0:hSlice-1])
 
 # Constraints
-# Op mode
-# Down times
-# Up times
-
-# Disjunction 0 (off)
-
-extreme_d_0 = [0]
-
-@constraint(m, cconvx0[i = 0:tHorz],
-    sum(lambda0[i, k] * extreme_d_0[k + 1] for k in 0) ==
-    xLoad[i, 0]  # There is only a single extreme
-    )
-
-@constraint(m, slambda0[i = 0:tHorz],
-    sum(lambda0[i, k] for k in 0) == y[i, 0]
-    )
-
-@constraint(m, bm0[i = 0:tHorz],
-    xLoad[i, 0] <= 100 * y[i, 0]
-    )
-
-
-
-# Disjunction 1 (on)
-
-extreme_d_1 = [60.0, 100.0]
-
-@constraint(m, cconvx1[i = 0:tHorz],
-    sum(lambda1[i, k] * extreme_d_1[k + 1] for k in 0:1) ==
-    xLoad[i, 1]
-    )
-
-@constraint(m, slambda1[i = 0:tHorz],
-    sum(lambda1[i, k] for k in 0:1) == y[i, 1]
-    )
-
-@constraint(m, bm1[i = 0:tHorz],
-    xLoad[i, 1] <= 100 * y[i, 1]
-    )
-
-
-# Overall Disjunction
-
-
-@constraint(m, spr[i = 0:tHorz],
-    yGasTelecLoad[i, 0] == sum(xLoad[i, k] for k in 0:1)
-    )
-
-
-@constraint(m, sy[i = 0:tHorz],
-    sum(y[i, k] for k in 0:1) == 1
-    )
-
-# Switch
-
-@constraint(m, switchc[i = 1:tHorz],
-    z[i, 0, 1] - z[i, 1, 0] == y[i, 1] - y[i-1, 1])
-
-KminOffOn = 24
-@constraint(m, minstay[i = (KminOffOn-1):tHorz],
-    y[i, 1] >= sum(z[i - k, 0, 1] for k in 0:(KminOffOn-1))
-    )
-
-
 # Gas Turbine
 @constraint(m, powGasTur[i = 0:tHorz, j = 0:hSlice-1], 
             xPowGasTur[i, j] == (aPowGasTeLoad * yGasTelecLoad[i, j] 
@@ -454,12 +382,12 @@ KminOffOn = 24
 # Initial conditions
 @constraint(m, icXa1FlueEq, xA1Flue[0, 0] == 0.)
 @constraint(m, icAR1FlueEq, xR1Flue[0, 0] == 0.)
-@constraint(m, capDacFlueEq, xFflue[0, 0] == aSorbAmountFreshFlue)
+@constraint(m, capDacFlueEq, xFflue[0, 0] == xSorbFreshFlue)
 @constraint(m, icSsFlueEq, xSflue[0, 0] == 0.)
 # End-point constraints we need to get rid of them and then put them back
 @constraint(m, endXa1FlueEq, xA1Flue[tHorz, hSlice] == 0.)
 @constraint(m, endAR1FlueEq, xR1Flue[tHorz, hSlice] == 0.)
-@constraint(m, endDacFlueEq, xFflue[tHorz, hSlice] == aSorbAmountFreshFlue)
+@constraint(m, endDacFlueEq, xFflue[tHorz, hSlice] == xSorbFreshFlue)
 @constraint(m, endSsFlueEq, xSflue[tHorz, hSlice] == 0.)
 
 #
@@ -509,14 +437,14 @@ KminOffOn = 24
 
 # Initial conditions - Air
 #@constraint(m, capDacAirEq, xFair[0] == xSorbFreshAir)
-@constraint(m, capDacAirEq, xFair[0, 0] == aSorbAmountFreshAir)
+@constraint(m, capDacAirEq, xFair[0, 0] == xSorbFreshAir)
 @constraint(m, icA1AirEq, xA1Air[0, 0] == 0.)
 @constraint(m, icA2AirEq, xA2Air[0, 0] == 0.)
 @constraint(m, icAR1AirEq, xR1Air[0, 0] == 0.)
 @constraint(m, icSsAirEq, xSair[0, 0] == 0.)
 # End-point conditions - Air
 
-@constraint(m, endDacAirEq, xFair[tHorz, hSlice] == aSorbAmountFreshAir)
+@constraint(m, endDacAirEq, xFair[tHorz, hSlice] == xSorbFreshAir)
 @constraint(m, endA1AirEq, xA1Air[tHorz, hSlice] == 0.)
 @constraint(m, endA2AirEq, xA2Air[tHorz, hSlice] == 0.)
 @constraint(m, endAR1AirEq, xR1Air[tHorz, hSlice] == 0.)
@@ -554,6 +482,18 @@ KminOffOn = 24
             - xSteaUseDacAir[i, j]
            )
 
+# approximately 60/45 every hour for air
+# approximately 60/30 every hour for flue
+@constraint(m, co2dacnomyr,
+    xCo2DacNomYr == 
+    (
+        xSorbFreshAir * aSorbCo2CapAir * 8760 * 60/45 + 
+        xSorbFreshFlue * aSorbCo2CapFlue * 8760 * 60/30
+        )/10  # assume this is for 10 years :S
+           )
+
+@constraint(m, daccapinv,
+           xDacCapInv == cCostInvDacUsdtCo2yr * xCo2DacNomYr)
 
 # Co2 Compression
 # 
@@ -636,6 +576,7 @@ KminOffOn = 24
         + cCo2TranspPrice * sum(xCo2Comp[i, j] for j in 0:hSlice-1)
         - pow_price[i + 1] * sum(xPowOut[i, j] for j in 0:hSlice-1)
         for i in 0:tHorz)
+        + xDacCapInv
         )
 
 @objective(m, Min, eObjfExpr)
@@ -655,16 +596,16 @@ end
 println()
 
 # Set optimizer options
-set_optimizer(m, Cbc.Optimizer)
+set_optimizer(m, Clp.Optimizer)
 set_optimizer_attribute(m, "LogLevel", 3)
-#set_optimizer_attribute(m, "PresolveType", 1)
+set_optimizer_attribute(m, "PresolveType", 1)
 
 optimize!(m)
 println(termination_status(m))
 
-#f = open("model.lp", "w")
-#print(f, m)
-#close(f)
+f = open("model.lp", "w")
+print(f, m)
+close(f)
 
 #write_to_file(m, "lp_mk0.mps")
 #write_to_file(m, "lp_mk10.lp", format=MOI.FileFormats.FORMAT_LP)
@@ -980,41 +921,6 @@ for i in 0:tHorz
 end
 
 
-df_binary = DataFrame(
-    :yoff => Float64[],
-    :yon => Float64[],
-    :zoffon => Float64[],
-    :zonoff => Float64[],
-    )
-
-for i in 0:tHorz
-    push!(df_binary, 
-        (
-            value(y[i, 0]),
-            value(y[i, 1]),
-            value(z[i, 0, 1]),
-            value(z[i, 1, 0]),
-        ))
-end
-
-df_pr = DataFrame(
-    :load0 => Float64[], 
-    :load1 => Float64[], 
-    :lambda0 => Float64[], 
-    :lambda10 => Float64[],
-    :lambda11 => Float64[]
-    )
-
-for i in 0:tHorz
-    push!(df_pr, (
-        value(xLoad[i, 0]), 
-        value(xLoad[i, 1]), 
-        value(lambda0[i, 0]), 
-        value(lambda1[i, 0]),
-        value(lambda1[i, 1])
-        ))
-end
-
 # Write CSV
 CSV.write("df_co.csv", df_co)
 CSV.write("df_pow.csv", df_pow)
@@ -1024,5 +930,16 @@ CSV.write("df_dac_air.csv", df_dac_air)
 CSV.write("df_pow_price.csv", df_pow_price)
 CSV.write("df_cost.csv", df_cost)
 CSV.write("df_time_slice.csv", df_time_slice)
-CSV.write("df_binary.csv", df_binary)
-CSV.write("df_pr.csv", df_pr)
+
+df_dac_design = DataFrame(
+                          dacSF = Float64[], 
+                          dacSA = Float64[], 
+                          dacCI = Float64[]
+                         )
+
+
+push!(df_dac_design, 
+      (value(xSorbFreshFlue), value(xSorbFreshAir), value(xDacCapInv)))
+
+CSV.write("dac_design.csv", df_dac_design)
+

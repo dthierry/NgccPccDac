@@ -12,7 +12,7 @@ import sys
 def main():
     
     #hour0 = 5090
-    hour0 = 3290
+    hour0 = 420
     delta_max = 80
     slice = 4
     delta = delta_max / slice
@@ -212,8 +212,8 @@ def main():
     ax.set_xticks(xt)
     ax.set_xlabel("Hour")
     ax.set_ylabel("\% Load")
-    ax.set_title("Load / Price")
-    ax.set_ylim([57, 103])
+    ax.set_title("Load v. Price")
+    ax.set_ylim([-3, 103])
 
     axb = ax.twinx()
     axb.plot(r0, 
@@ -539,7 +539,7 @@ def all_long_loads():
     
     ax.set_xlabel("Hour")
     ax.set_ylabel("\% Load")
-    ax.set_title("Load / Price")
+    ax.set_title("Load v. Price")
     axb = ax.twinx()
     
     axb.plot(dfb.index, dfb["price"], 
@@ -594,7 +594,7 @@ def all_long_halloc():
     plt.close(fig)
 
 if __name__ == "__main__":
-    #all_long_loads()
+    all_long_loads()
     #all_long_profit()
     #all_long_halloc()
     main()
