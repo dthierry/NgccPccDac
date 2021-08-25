@@ -327,14 +327,14 @@ rdown1 = 10
 
 @constraint(m, 
     rupload1[i = 1:tHorz], 
-    xLoad[i, 1] - xLoad[i-1, 1] <= 
-    rup1 * y[i, 1]
+    xLoad[i, 2] - xLoad[i-1, 2] <= 
+    rup1 * y[i, 2]
     )
 
 @constraint(m, 
     rdownload1[i = 1:tHorz], 
-    xLoad[i - 1, 1] - xLoad[i, 1] <= 
-    rdown1 * y[i, 1]
+    xLoad[i - 1, 2] - xLoad[i, 2] <= 
+    rdown1 * y[i, 2]
     )
 
 # Minimum stay 

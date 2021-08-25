@@ -12,7 +12,7 @@ import sys
 def main():
     
     #hour0 = 5090
-    hour0 = 420
+    hour0 = 150
     delta_max = 80
     slice = 4
     delta = delta_max / slice
@@ -595,8 +595,8 @@ def all_long_halloc():
 
 if __name__ == "__main__":
     all_long_loads()
-    #all_long_profit()
-    #all_long_halloc()
+    all_long_profit()
+    all_long_halloc()
     main()
 
 
