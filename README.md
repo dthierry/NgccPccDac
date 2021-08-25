@@ -1,2 +1,3 @@
-# princetonDacLti
-Linear time invariant model for the DAC unit
+# Ngcc -- Pcc -- Dac
+
+Lti model. 
