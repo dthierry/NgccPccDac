@@ -2,7 +2,6 @@ using DataFrames
 using CSV
 using GLM
 using Lathe
-using Plots
 
 df_steam_t = DataFrame(CSV.File("../resources/data3.csv"))
 coln_steam = Symbol[]
