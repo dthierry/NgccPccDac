@@ -1,0 +1,100 @@
+\documentclass{tufte-handout}
+\usepackage{amsmath}
+
+% Set up the images/graphics package
+\usepackage{graphicx}
+\setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
+\graphicspath{{figures/}}
+
+\title{Notes about NGCC-PCC-DAC}
+
+\author{dthierry}
+
+% Make prettier tables.
+\usepackage{booktabs}
+
+% The units package provides nice, non-stacked fractions and better spacing
+% for units.
+\usepackage{units}
+
+% The fancyvrb package lets us customize the formatting of verbatim
+% environments.  We use a slightly smaller font.
+\usepackage{fancyvrb}
+\fvset{fontsize=\normalsize}
+
+% Small sections of multiple columns
+\usepackage{multicol}
+\usepackage{amssymb}
+
+
+
+%%% Custom Commands
+%---------------------------------------------------------------------------
+% Concise referencing
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent abstract
+\end{abstract}
+
+
+
+\section{Introduction}
+%---------------------------------------------------------------------------
+
+Little notes.
+
+\section{Section 1: Disjunctive formulation}
+%---------------------------------------------------------------------------
+
+\begin{equation}
+	\bigvee_{m \in M}
+	\begin{pmatrix} 
+    Y_m \\
+		\sum_{i \in I_m} \lambda_{m,i} \left(k \right) x_{m, i} = \text{Pr} \left(k\right)
+		\\ 
+		\sum_{i \in I_m} \lambda_{m,i} \left(k \right) = 1 \\
+    0 \leq \lambda_{m,i} \left(k \right) \leq 1 \quad \forall i \\
+    A_m w_{m}\left(k\right) = b_m
+	\end{pmatrix}, \; k \in {0,...,T},
+\end{equation}
+
+Variables $\text{Pr}\left(k \right)$, $\lambda_{m,i} \left(k \right)$
+
+Suppose the vector of variables that are directly dependent on the load factor (e.g., fuel) can be calculated with a linear equation in the form $w \left( k \right)= A \text{Load}\left(k \right) + b$. Then, if it is possible to calculate the coefficients of $A$ and $b$ for each operation mode $m \in M$, the disjunctive constraint for the operating modes can be written as follows, 
+\begin{equation}
+	\bigvee_{m \in M}
+	\begin{bmatrix} 
+    Y_m \left(k\right)\\
+		\text{Load} \left(k\right) = \sum_{i \in I_m} \lambda_{m,i} \left(k \right) \nu_{m, i}
+		\\ 
+		\sum_{i \in I_m} \lambda_{m,i} \left(k \right) = 1 \\
+    0 \leq \lambda_{m,i} \left(k \right) \leq 1 \quad \forall i \\
+    w_m = A_m \text{Load} + b_m
+	\end{bmatrix}, \; k \in {0,...,T},
+\end{equation}
+where $Y_m \in \left\{\text{True, False} \right\}$ is a boolean variable and it is assumed that $\veebar_{m \in M} Y_m \left(k\right)$
+
+\subsection{Subsection 1: MILP form}
+\begin{equation}
+\begin{split}
+\sum_{I_m} \lambda_{m, i} \left(k\right) x_{m, i} &= \overline{\text{Pr}}_m \left(k \right) \\
+\sum_{I_m} \lambda_{m, i} \left(k\right) & = y_m \left(k\right) \\
+\sum_{m \in M} y_m \left(k\right) & = 1
+\end{split}
+\end{equation}
+
+
+
+\begin{equation}
+\begin{split}
+	A_m \nu_m \left(k\right) &= b_m \\
+	\nu_m \left(k\right) & = y_{m} \left(k\right)
+\end{split}
+\end{equation}
+
+%---------------------------------------------------------------------------
+\end{document}
