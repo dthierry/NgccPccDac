@@ -2,9 +2,15 @@
 #: by David Thierry 2021
 #: Set all the eqns to hslice - 1
 using JuMP
-using Clp
+using SCIP
 using DataFrames
 using CSV
+
+#: Consider a single gt-hrsg unit with two-level discretization
+#: 1-hour and hslice slices for every hour
+#
+#: Latter models only considered slices for the dac variables/constraints
+#: while keeping the rest of vars/cons with a single indexs 
 
 #: Data frames section
 #: Load parameters
@@ -20,18 +26,19 @@ df_ng_c = DataFrame(CSV.File("../resources/natural_gas_price.csv"))
 
 
 #: Assign parameters
-
-#: Gas parameters
+#: Usually two parameters a & b.
 bPowGasTeLoad = df_gas[1, 2]
 aPowGasTeLoad = df_gas[1, 3]
 
 bFuelEload = df_gas[2, 2]
 aFuelEload = df_gas[2, 3]
+
+#: Conversion factor
 lbcoToTonneco = 0.4535924 / 1000
 bEmissFactEload = df_gas[3, 2] * lbcoToTonneco
 aEmissFactEload = df_gas[3, 3] * lbcoToTonneco
 
-bPowHpEload = df_gas[4, 2] / 1000  #: To scale the kW to MW
+bPowHpEload = df_gas[4, 2] / 1000  #: 1000 to scale the kW to MW
 aPowHpEload = df_gas[4, 3] / 1000
 
 bPowIpEload = df_gas[5, 2] / 1000
@@ -40,14 +47,15 @@ aPowIpEload = df_gas[5, 3] / 1000
 bAuxRateGas = df_gas[6, 2] / 1000
 aAuxRateGas = df_gas[6, 3] / 1000
 
-#: Steam params
+#: Base PCC steam from the full steam params
 bCcRebDutyEload = df_steam_full_steam[2, 2]
 aCcRebDutyEload = df_steam_full_steam[2, 3]
 
 #: Full power gives you the min steam
-bDacSteaBaseEload = df_steam_full_power[3, 2]  
+bDacSteaBaseEload = df_steam_full_power[3, 2]
 aDacSteaBaseEload = df_steam_full_power[3, 3]
 
+#: Side steam is the difference btw full steam and power
 bSideSteaEload = df_steam_full_steam[3, 2] - df_steam_full_power[3, 2]
 aSideSteaEload = df_steam_full_steam[3, 3] - df_steam_full_power[3, 3]
 
@@ -57,16 +65,16 @@ aAuxRateStea = df_steam_full_power[4, 3] / 1000
 aLpSteaToPow = 78.60233832  # MMBtu to kwh
 
 kwhToMmbtu = 3412.1416416 / 1e+06
-#aSteaUseRateDacAir = 1944 * kwhToMmbtu
-#aSteaUseRateDacFlue = 1944 * kwhToMmbtu
-# 7 GJ/tonneCO
+
+# 7 GJ/tonneCO for regeneration, put a factor here (5)
 aSteaUseRateDacAir = 5 * (7 * 1e+06 / 3600) * kwhToMmbtu
 aSteaUseRateDacFlue = 5 * (7 * 1e+06 / 3600) * kwhToMmbtu
 
 aPowUseRateDacAir = 500 / 1000
 aPowUseRateDacFlue = 250 / 1000
-# 1 mmol/gSorb #
-# per gCo/gSorb
+
+# assume 1 mmol/gSorb
+# gCo/gSorb
 gCogSorbRatio = 1e-03 * 44.0095
 
 aSorbCo2CapFlue = 1 * gCogSorbRatio
@@ -80,9 +88,7 @@ aSorbAmountFreshAir = 3162.18 - 176. * 10  # Tonne sorb (Max. heat basis)
 
 aCapRatePcc = 0.97
 # 2.4 MJ/kg (1,050 Btu/lb) CO2 page 379/
-#aSteaUseRatePcc = aSteaUseRateDacFlue * 0.2
-#aSteaUseRatePcc = 2.4 * 1000 * 1000 / 3600 * kwhToMmbtu 
-#println(aSteaUseRatePcc)
+
 # aPowUseRatePcc = 0.173514487  # MWh/tonneCoi2 (old)
 aSteaUseRatePcc = 2.69 + 0.0218 + 0.00127 # MMBTU/tonne CO2 (trimeric)
 println(aSteaUseRatePcc)
@@ -95,10 +101,10 @@ tHorz = 24 * 364 - 1
 #: Slices per hour
 hSlice = 4  # the number of slices of a given hour
 # There are tHorz - 1 slices
-# Each slice has hSlice points, but only states have the 0th
+# Each slice has hSlice points, but only dac-states have the 0th
 
 # If there's several slices in an hour we kind of need to divide the
-# hourly-based quantities :(
+# hourly-based quantities 
 sliceFact = 1/hSlice
 
 aPowGasTeLoad = aPowGasTeLoad * sliceFact
@@ -154,59 +160,53 @@ cCo2TranspPrice = 1e+00
 pCo2Credit = 1e+00
 
 
-#vCapCombTurb = 3.
-vCapSteaTurb = 2.
-vCapTransInter = 5.
-vCapPcc = 20.
-vCapComp = 1000.
 # Capital Cost DAC USD/tCo2/yr 
-cCostInvDacUsdtCo2yr = 750
+cCostpKgDac = 50
 cCostFixedDacUsdtCo2yr = 25
 cCostVariableDacUsdtCo2yr = 12
 
-
-@variable(m, 60 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100)
-@variable(m, 0 <= xPowGasTur[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowGross[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowOut[0:tHorz, 0:hSlice-1])
-
-@variable(m, 0 <= xAuxPowGasT[0:tHorz, 0:hSlice-1])
-
-# Steam Turbine
-@variable(m, 0 <= xPowHp[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowIp[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowLp[0:tHorz, 0:hSlice-1])
-
-@variable(m, 0 <= xFuel[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xCo2Fuel[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xDacSteaDuty[0:tHorz, 0:hSlice-1])
-
-
-@variable(m, 0 <= xCcRebDuty[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xDacSteaBaseDuty[0:tHorz, 0:hSlice-1])
-
-@variable(m, 0 <= xSideSteam[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xSteaPowLp[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xSideSteaDac[0:tHorz, 0:hSlice-1])
-
+# some variables
+@variable(m, 60 <= yGasTelecLoad[0:tHorz, 0:hSlice-1] <= 100) #
+@variable(m, 0 <= xPowGasTur[0:tHorz, 0:hSlice-1]) # gas turb power
+@variable(m, 0 <= xPowGross[0:tHorz, 0:hSlice-1]) # gross pow
+@variable(m, 0 <= xPowOut[0:tHorz, 0:hSlice-1]) # pow out
 #
-@variable(m, 0 <= xPowSteaTur[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xAuxPowSteaT[0:tHorz, 0:hSlice-1])
-
-# Pcc
-#@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1] <= vCapPcc)
-@variable(m, 0 <= xCo2CapPcc[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xSteaUsePcc[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowUsePcc[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xCo2PccOut[0:tHorz, 0:hSlice-1])
-#@variable(m, 0 <= vCo2PccVent[0:tHorz - 1] <= 0.1)
-@variable(m, 0 <= vCo2PccVent[0:tHorz, 0:hSlice-1])
-#vCo2PccVent = 0.0
-@variable(m, 0 <= xCo2DacFlueIn[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPccSteaSlack[0:tHorz, 0:hSlice-1])
+@variable(m, 0 <= xAuxPowGasT[0:tHorz, 0:hSlice-1]) # auxiliar pow gas turb.
+#
+# Steam Turbine #
+@variable(m, 0 <= xPowHp[0:tHorz, 0:hSlice-1]) # hp pow
+@variable(m, 0 <= xPowIp[0:tHorz, 0:hSlice-1]) # ip pow
+@variable(m, 0 <= xPowLp[0:tHorz, 0:hSlice-1]) # lp pow
+#
+@variable(m, 0 <= xFuel[0:tHorz, 0:hSlice-1]) # fuel
+@variable(m, 0 <= xCo2Fuel[0:tHorz, 0:hSlice-1]) # co2 emission
+@variable(m, 0 <= xDacSteaDuty[0:tHorz, 0:hSlice-1]) # dac steam
+#
+#
+@variable(m, 0 <= xCcRebDuty[0:tHorz, 0:hSlice-1]) # pcc steam (available)
+@variable(m, 0 <= xDacSteaBaseDuty[0:tHorz, 0:hSlice-1]) # base dac steam
+#
+@variable(m, 0 <= xSideSteam[0:tHorz, 0:hSlice-1]) # side steam(allocated)
+@variable(m, 0 <= xSteaPowLp[0:tHorz, 0:hSlice-1]) # side steam to lp
+@variable(m, 0 <= xSideSteaDac[0:tHorz, 0:hSlice-1]) # side steam to dac
+#
+# #
+@variable(m, 0 <= xPowSteaTur[0:tHorz, 0:hSlice-1]) # pow steam turb
+@variable(m, 0 <= xAuxPowSteaT[0:tHorz, 0:hSlice-1]) # aux pow steam
+#
+# Pcc #
+@variable(m, 0 <= xCo2CapPcc[0:tHorz, 0:hSlice-1]) # pcc co2 capacity
+@variable(m, 0 <= xSteaUsePcc[0:tHorz, 0:hSlice-1]) # pcc steam use
+@variable(m, 0 <= xPowUsePcc[0:tHorz, 0:hSlice-1]) # pcc pow use
+@variable(m, 0 <= xCo2PccOut[0:tHorz, 0:hSlice-1]) # co2 out pcc
+#@variable(m, 0 <= vCo2PccVent[0:tHorz - 1] <= 0.1) #
+@variable(m, 0 <= vCo2PccVent[0:tHorz, 0:hSlice-1]) # vented co2 pcc
+#vCo2PccVent = 0.0 #
+@variable(m, 0 <= xCo2DacFlueIn[0:tHorz, 0:hSlice-1]) # co2 into dac flue
+@variable(m, 0 <= xPccSteaSlack[0:tHorz, 0:hSlice-1]) # pcc steam slack 
 
 # Dac-Flue
-@variable(m, 0 <= xA0Flue[0:tHorz, 0:hSlice-1]) # Kind of input 
+@variable(m, 0 <= xA0Flue[0:tHorz, 0:hSlice-1]) # dac input 
 
 @variable(m, 0 <= xA1Flue[0:tHorz, 0:hSlice]) # State
 
@@ -218,18 +218,18 @@ cCostVariableDacUsdtCo2yr = 12
 @variable(m, 0 <= xSflue[0:tHorz, 0:hSlice])  # State
 
 
-@variable(m, 0 <= xCo2CapDacFlue[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xSteaUseDacFlue[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xPowUseDacFlue[0:tHorz, 0:hSlice-1])
-@variable(m, 0 <= xCo2DacVentFlue[0:tHorz, 0:hSlice-1])
+@variable(m, 0 <= xCo2CapDacFlue[0:tHorz, 0:hSlice-1]) # co2 capacity flue
+@variable(m, 0 <= xSteaUseDacFlue[0:tHorz, 0:hSlice-1]) # steam used pcc
+@variable(m, 0 <= xPowUseDacFlue[0:tHorz, 0:hSlice-1]) # pow used pcc
+@variable(m, 0 <= xCo2DacVentFlue[0:tHorz, 0:hSlice-1]) # co2 vented
 
 # Dac-Air
-@variable(m, 0 <= xA0Air[0:tHorz, 0:hSlice-1]) # Kind of input
+@variable(m, 0 <= xA0Air[0:tHorz, 0:hSlice-1]) # dac input
 
 @variable(m, 0 <= xA1Air[0:tHorz, 0:hSlice]) # State
 @variable(m, 0 <= xA2Air[0:tHorz, 0:hSlice]) # State
 
-@variable(m, 0 <= xR0Air[0:tHorz, 0:hSlice-1])  # Kind of input
+@variable(m, 0 <= xR0Air[0:tHorz, 0:hSlice-1])  # dac input
 
 @variable(m, 0 <= xR1Air[0:tHorz, 0:hSlice])  # State
 @variable(m, 0 <= xFair[0:tHorz, 0:hSlice])  # State
@@ -242,24 +242,21 @@ cCostVariableDacUsdtCo2yr = 12
 
 @variable(m, 0 <= xDacSteaSlack[0:tHorz, 0:hSlice-1])
 #
-@variable(m, 0 <= xCo2DacNomYr)
-@variable(m, 0 <= xSorbFreshFlue)
-@variable(m, 0 <= xSorbFreshAir)
-@variable(m, 0 <= xDacCapInv)
-# DAC hourly capacity
-#
 
-
-
+@variable(m, 0 <= xSorbFreshFlue) # fresh sorb
+@variable(m, 0 <= xSorbFreshAir) # fresh sorb (air)
+@variable(m, 0 <= xDacCapInv) # dac cap inv
 # CO2 compression
 @variable(m, 0 <= xCo2Comp[0:tHorz, 0:hSlice-1])
 @variable(m, 0 <= xPowUseComp[0:tHorz, 0:hSlice-1])
-#@variable(m, 0 <= vCapComp)
 @variable(m, xCo2Vent[0:tHorz, 0:hSlice-1])  # This used to be only positive.
 
-@variable(m, 0 <= xAuxPow[0:tHorz, 0:hSlice-1])
+@variable(m, 0 <= xAuxPow[0:tHorz, 0:hSlice-1]) # aux power for steam turb.
+
 
 # Constraints
+
+
 # Gas Turbine
 @constraint(m, powGasTur[i = 0:tHorz, j = 0:hSlice-1], 
             xPowGasTur[i, j] == (aPowGasTeLoad * yGasTelecLoad[i, j] 
@@ -295,8 +292,7 @@ cCostVariableDacUsdtCo2yr = 12
 
 # 
 @constraint(m, powLpEq[i = 0:tHorz, j = 0:hSlice-1], 
-#            xPowLp[i] == aPowLpEload * yGasTelecLoad[i] + bPowLpEload
-            xPowLp[i, j] == xSteaPowLp[i, j] * aLpSteaToPow / 1000
+            xPowLp[i, j] == xSteaPowLp[i, j] * aLpSteaToPow / 1000 # 1000 conversion fact
            )
 # 
 @constraint(m, powerSteaEq[i = 0:tHorz, j = 0:hSlice-1], 
@@ -347,7 +343,6 @@ cCostVariableDacUsdtCo2yr = 12
 @constraint(m, co2DacFlueInEq[i = 0:tHorz, j = 0:hSlice-1], 
             xCo2DacFlueIn[i, j] == xCo2PccOut[i, j] - vCo2PccVent[i, j])
 # 
-# @constraint(m, co2CapPccIn[i = 0:tHorz - 1], xCo2CapPcc[i] <= vCapPcc)
 # Dav: Sometimes there is not enough steam, so we have to relax this constraint 
 @constraint(m, steamUsePccEq[i = 0:tHorz, j = 0:hSlice-1], 
             xSteaUsePcc[i, j] <= aSteaUseRatePcc * xCo2CapPcc[i, j])
@@ -450,15 +445,7 @@ cCostVariableDacUsdtCo2yr = 12
 @constraint(m, endAR1AirEq, xR1Air[tHorz, hSlice] == 0.)
 @constraint(m, endSsAirEq, xSair[tHorz, hSlice] == 0.)
 
-#@constraint(m, endDacAirEq, xFair[0] == xSorbFreshAir)
-#@constraint(m, endDacAirEq, xFair[0, 0] == aSorbAmountFreshAir)
-#@constraint(m, endA1AirEq, xA1Air[0, 0] == 0.)
-#@constraint(m, endA2AirEq, xA2Air[0, 0] == 0.)
-#@constraint(m, endAR1AirEq, xR1Air[0, 0] == 0.)
-#@constraint(m, endSsAirEq, xSair[0, 0] == 0.)
-
 #
-# Money, baby.
 @constraint(m, co2CapDacAirEq[i = 0:tHorz, j=0:hSlice-1], 
             xCo2CapDacAir[i, j] == 
             #aSorbCo2CapAir * xR1Air[i, j]
@@ -484,16 +471,10 @@ cCostVariableDacUsdtCo2yr = 12
 
 # approximately 60/45 every hour for air
 # approximately 60/30 every hour for flue
-@constraint(m, co2dacnomyr,
-    xCo2DacNomYr == 
-    (
-        xSorbFreshAir * aSorbCo2CapAir * 8760 * 60/45 + 
-        xSorbFreshFlue * aSorbCo2CapFlue * 8760 * 60/30
-        )/10  # assume this is for 10 years :S
-           )
+
 
 @constraint(m, daccapinv,
-           xDacCapInv == cCostInvDacUsdtCo2yr * xCo2DacNomYr)
+           xDacCapInv == cCostpKgDac * (xSorbFreshAir + xSorbFreshFlue) * 1000)
 
 # Co2 Compression
 # 
@@ -508,16 +489,12 @@ cCostVariableDacUsdtCo2yr = 12
             xPowUseComp[i, j] == aPowUseRateComp * xCo2Comp[i, j]
            )
 # 
-# @constraint(m, powUseCompIn[i = 0:tHorz - 1], xPowUseComp[i] <= vCapComp)
-
-# @constraint(m, co2VentEq[i = 0:tHorz - 1], 
-# xCo2Vent[i] == vCo2PccVent[i] + xCo2DacVentFlue[i])
 @constraint(m, co2VentEq[i = 0:tHorz, j = 0:hSlice-1], 
             xCo2Vent[i, j] == vCo2PccVent[i, j] 
             + (xCo2DacVentFlue[i, j] - xCo2CapDacAir[i, j])
            )
 
-## Overall
+## Overall power
 
 #
 @constraint(m, powGrossEq[i = 0:tHorz, j = 0:hSlice-1], 
@@ -558,6 +535,7 @@ cCostVariableDacUsdtCo2yr = 12
 @constraint(m, 
             contr1flue[i = 1:tHorz], xR1Flue[i, 0] == xR1Flue[i - 1, hSlice])
 
+# Continuity of states (air)
 @constraint(m, 
             contxfair[i = 1:tHorz], xFair[i, 0] == xFair[i - 1, hSlice])
 @constraint(m, 
@@ -576,9 +554,9 @@ cCostVariableDacUsdtCo2yr = 12
         + cCo2TranspPrice * sum(xCo2Comp[i, j] for j in 0:hSlice-1)
         - pow_price[i + 1] * sum(xPowOut[i, j] for j in 0:hSlice-1)
         for i in 0:tHorz)
-        + xDacCapInv
+        + xDacCapInv/20 # added capital investment
         )
-
+#: Declare objective
 @objective(m, Min, eObjfExpr)
 
 print("The number of variables\t")
@@ -596,16 +574,12 @@ end
 println()
 
 # Set optimizer options
-set_optimizer(m, Clp.Optimizer)
-set_optimizer_attribute(m, "LogLevel", 3)
-set_optimizer_attribute(m, "PresolveType", 1)
+set_optimizer(m, SCIP.Optimizer)
+
 
 optimize!(m)
 println(termination_status(m))
 
-f = open("model.lp", "w")
-print(f, m)
-close(f)
 
 #write_to_file(m, "lp_mk0.mps")
 #write_to_file(m, "lp_mk10.lp", format=MOI.FileFormats.FORMAT_LP)

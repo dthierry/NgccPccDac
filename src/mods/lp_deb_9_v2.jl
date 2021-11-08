@@ -1,9 +1,15 @@
 # vim: set wrap
 #: by David Thierry 2021
 using JuMP
-using Clp
+using SCIP
 using DataFrames
 using CSV
+
+#: Consider a single gt-hrsg unit with two-level discretization
+#: 1-hour and hslice slices for every hour
+#
+#: Latter models only considered slices for the dac variables/constraints
+#: while keeping the rest of vars/cons with a single indexs 
 
 #: Data frames section
 #: Load parameters
@@ -20,18 +26,19 @@ df_ng_c = DataFrame(CSV.File("../resources/natural_gas_price.csv"))
 df_rf = DataFrame(CSV.File("../resources/1year_2c.csv"))
 
 #: Assign parameters
-#: Gas parameters
-
+#: Usually two parameters a & b.
 bPowGasTeLoad = df_gas[1, 2]
 aPowGasTeLoad = df_gas[1, 3]
 
 bFuelEload = df_gas[2, 2]
 aFuelEload = df_gas[2, 3]
+
+#: Conversion factor
 lbcoToTonneco = 0.4535924 / 1000
 bEmissFactEload = df_gas[3, 2] * lbcoToTonneco
 aEmissFactEload = df_gas[3, 3] * lbcoToTonneco
 
-bPowHpEload = df_gas[4, 2] / 1000  #: To scale the kW to MW
+bPowHpEload = df_gas[4, 2] / 1000  #: 1000 to scale the kW to MW
 aPowHpEload = df_gas[4, 3] / 1000
 
 bPowIpEload = df_gas[5, 2] / 1000
@@ -40,13 +47,14 @@ aPowIpEload = df_gas[5, 3] / 1000
 bAuxRateGas = df_gas[6, 2] / 1000
 aAuxRateGas = df_gas[6, 3] / 1000
 
-#: Steam params
+#: Base PCC steam from the full steam params
 bCcRebDutyEload = df_steam_full_steam[2, 2]
 aCcRebDutyEload = df_steam_full_steam[2, 3]
 #: Full power gives you the min steam
-bDacSteaBaseEload = df_steam_full_power[3, 2]  
+bDacSteaBaseEload = df_steam_full_power[3, 2]
 aDacSteaBaseEload = df_steam_full_power[3, 3]
 
+#: Side steam is the difference btw full steam and power
 bSideSteaEload = df_steam_full_steam[3, 2] - df_steam_full_power[3, 2]
 aSideSteaEload = df_steam_full_steam[3, 3] - df_steam_full_power[3, 3]
 
@@ -56,16 +64,16 @@ aAuxRateStea = df_steam_full_power[4, 3] / 1000
 aLpSteaToPow = 78.60233832  # MMBtu to kwh
 
 kwhToMmbtu = 3412.1416416 / 1e+06
-#aSteaUseRateDacAir = 1944 * kwhToMmbtu
-#aSteaUseRateDacFlue = 1944 * kwhToMmbtu
-# 7 GJ/tonneCO
+
+# 7 GJ/tonneCO for regeneration, put a factor here (5)
 aSteaUseRateDacAir = 5 * (7 * 1e+06 / 3600) * kwhToMmbtu
 aSteaUseRateDacFlue = 5 * (7 * 1e+06 / 3600) * kwhToMmbtu
 
 aPowUseRateDacAir = 500 / 1000
 aPowUseRateDacFlue = 250 / 1000
-# 1 mmol/gSorb #
-# per gCo/gSorb
+
+# assume 1 mmol/gSorb
+# gCo/gSorb
 gCogSorbRatio = 1e-03 * 44.0095
 
 aSorbCo2CapFlue = 1 * gCogSorbRatio
@@ -79,9 +87,7 @@ aSorbAmountFreshAir = 3162.18 - 176. * 10  # Tonne sorb (Max. heat basis)
 
 aCapRatePcc = 0.97
 # 2.4 MJ/kg (1,050 Btu/lb) CO2 page 379/
-#aSteaUseRatePcc = aSteaUseRateDacFlue * 0.2
-#aSteaUseRatePcc = 2.4 * 1000 * 1000 / 3600 * kwhToMmbtu 
-#println(aSteaUseRatePcc)
+
 # aPowUseRatePcc = 0.173514487  # MWh/tonneCoi2 (old)
 aSteaUseRatePcc = 2.69 + 0.0218 + 0.00127 # MMBTU/tonne CO2 (trimeric)
 println(aSteaUseRatePcc)
@@ -97,12 +103,15 @@ pow_price =(df_pow_c[!, "MiNg_150_ERCOT"])  # USD/MWh
 # 0.056 lb/cuft STP
 #std_w_ng1000cuft = 0.056 * 1000
 #cNgPerLbUsd = (3.5 / 1000) / 0.056
+
+# Cost of natural gas
 cNgPerMmbtu = 3.5
 m = Model()
 #
 # aPowUseRateComp = 0.279751187  # MWh/tonneCo2
 aPowUseRateComp = 0.076 # MWh/tonneCo2 (Trimeric)
-#
+
+# Other costs
 cCostInvCombTurb = 1e+02
 cCostInvSteaTurb = 1e+02
 cCostInvTransInter = 1e+02
@@ -111,60 +120,52 @@ cCostInvDac = 1e+03
 cCostInvComp = 1e+01
 
 # Cost parameters.
-cEmissionPrice = 150. # USD/tonne CO2
+cEmissionPrice = 1.5e+02 # USD/tonne CO2
 cCo2TranspPrice = 1e+00
 pCo2Credit = 1e+00
 
-
-#vCapCombTurb = 3.
-vCapSteaTurb = 2.
-vCapTransInter = 5.
-vCapPcc = 20.
-vCapComp = 1000.
 # Capital Cost DAC USD/tCo2/yr 
 cCostInvDacUsdtCo2yr = 750
 cCostFixedDacUsdtCo2yr = 25
 cCostVariableDacUsdtCo2yr = 12
 
-@variable(m, 60 <= yGasTelecLoad[0:tHorz - 1] <= 100)
-@variable(m, 0 <= xPowGasTur[0:tHorz - 1])
-@variable(m, 0 <= xPowGross[0:tHorz - 1])
-@variable(m, 0 <= xPowOut[ 0:tHorz - 1])
-
-@variable(m, xAuxPowGasT[0:tHorz - 1] >= 0)
-
-# Steam Turbine
-@variable(m, 0 <= xPowHp[0:tHorz - 1])
-@variable(m, 0 <= xPowIp[0:tHorz - 1])
-@variable(m, 0 <= xPowLp[0:tHorz - 1])
-
-@variable(m, 0 <= xFuel[0:tHorz - 1])
-@variable(m, 0 <= xCo2Fuel[0:tHorz - 1])
-@variable(m, xDacSteaDuty[0:(tHorz -1)] >= 0.0)
-
-@variable(m, 0 <= xCcRebDuty[0:tHorz - 1])
-@variable(m, 0 <= xDacSteaBaseDuty[0:tHorz - 1])
-
-@variable(m, 0 <= xSideSteam[0:tHorz - 1])
-@variable(m, 0 <= xSteaPowLp[0:tHorz - 1])
-@variable(m, 0 <= xSideSteaDac[0:tHorz - 1])
-
-#
-
-@variable(m, 0 <= xPowSteaTur[0:tHorz - 1])
-@variable(m, 0 <= xAuxPowSteaT[0:tHorz - 1])
-
-# Pcc
-#@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1] <= vCapPcc)
-@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1])
-@variable(m, 0 <= xSteaUsePcc[0:tHorz - 1])
-@variable(m, 0 <= xPowUsePcc[0:tHorz - 1])
-@variable(m, 0 <= xCo2PccOut[0:tHorz - 1])
-#@variable(m, 0 <= vCo2PccVent[0:tHorz - 1] <= 0.1)
-@variable(m, 0 <= vCo2PccVent[0:tHorz - 1])
-#vCo2PccVent = 0.0
-@variable(m, 0 <= xCo2DacFlueIn[0:tHorz - 1])
-@variable(m, 0 <= xPccSteaSlack[0:tHorz - 1])
+@variable(m, 60 <= yGasTelecLoad[0:tHorz - 1] <= 100) # gas load
+@variable(m, 0 <= xPowGasTur[0:tHorz - 1]) # pow gas t
+@variable(m, 0 <= xPowGross[0:tHorz - 1]) # gross pow
+@variable(m, 0 <= xPowOut[ 0:tHorz - 1]) # power out
+ #
+@variable(m, xAuxPowGasT[0:tHorz - 1] >= 0) # aux power req gas t.
+ #
+# Steam Turbine #
+@variable(m, 0 <= xPowHp[0:tHorz - 1]) # steam hp pow
+@variable(m, 0 <= xPowIp[0:tHorz - 1]) # steam ip pow
+@variable(m, 0 <= xPowLp[0:tHorz - 1]) # steam lp pow
+ #
+@variable(m, 0 <= xFuel[0:tHorz - 1]) # fuel
+@variable(m, 0 <= xCo2Fuel[0:tHorz - 1]) # co2 from fuel
+@variable(m, xDacSteaDuty[0:(tHorz -1)] >= 0.0) # overall dac steam
+ #
+@variable(m, 0 <= xCcRebDuty[0:tHorz - 1]) # pcc steam
+@variable(m, 0 <= xDacSteaBaseDuty[0:tHorz - 1]) # base dac duty
+ #
+@variable(m, 0 <= xSideSteam[0:tHorz - 1]) # allocated steam
+@variable(m, 0 <= xSteaPowLp[0:tHorz - 1]) # lp pow from steam
+@variable(m, 0 <= xSideSteaDac[0:tHorz - 1]) # dac additional steam
+ #
+# #
+ #
+@variable(m, 0 <= xPowSteaTur[0:tHorz - 1]) # pow from steam
+@variable(m, 0 <= xAuxPowSteaT[0:tHorz - 1]) # aux pow steam turb
+ #
+# Pcc #
+@variable(m, 0 <= xCo2CapPcc[0:tHorz - 1]) # co2 capacity pcc
+@variable(m, 0 <= xSteaUsePcc[0:tHorz - 1]) # steam use pcc
+@variable(m, 0 <= xPowUsePcc[0:tHorz - 1]) # pow use pcc
+@variable(m, 0 <= xCo2PccOut[0:tHorz - 1]) # co2 pcc out
+@variable(m, 0 <= vCo2PccVent[0:tHorz - 1]) #
+#vCo2PccVent = 0.0 #
+@variable(m, 0 <= xCo2DacFlueIn[0:tHorz - 1]) # co2 to dac (flue)
+@variable(m, 0 <= xPccSteaSlack[0:tHorz - 1]) # steam slack
 
 # Dac-Flue
 @variable(m, 0 <= xA0Flue[0:tHorz - 1]) 
@@ -176,10 +177,10 @@ cCostVariableDacUsdtCo2yr = 12
 @variable(m, 0 <= xFflue[0:tHorz])  # State
 @variable(m, 0 <= xSflue[0:tHorz])  # State
 
-@variable(m, 0 <= vAbsFlue[0:tHorz - 1])  # Input
-@variable(m, 0 <= vRegFlue[0:tHorz - 1])  # Input
+@variable(m, 0 <= vAbsFlue[0:tHorz - 1])  # dac Input
+@variable(m, 0 <= vRegFlue[0:tHorz - 1])  # dac Input
 
-@variable(m, 0 <= xCo2StorDacFlue[0:tHorz - 1])
+@variable(m, 0 <= xCo2StorDacFlue[0:tHorz - 1]) # storage req for dac 
 @variable(m, 0 <= xCo2CapDacFlue[0:tHorz - 1])
 @variable(m, 0 <= xSteaUseDacFlue[0:tHorz - 1])
 @variable(m, 0 <= xPowUseDacFlue[0:tHorz - 1])
@@ -195,8 +196,8 @@ cCostVariableDacUsdtCo2yr = 12
 @variable(m, 0 <= xFair[0:tHorz])  # State
 @variable(m, 0 <= xSair[0:tHorz])  # State
 
-@variable(m, 0 <= vAbsAir[0:tHorz - 1])  # Input
-@variable(m, 0 <= vRegAir[0:tHorz - 1])  # Input
+@variable(m, 0 <= vAbsAir[0:tHorz - 1])  # dac Input
+@variable(m, 0 <= vRegAir[0:tHorz - 1])  # dac Input
 
 @variable(m, 0 <= xCo2StorDacAir[0:tHorz - 1])
 @variable(m, 0 <= xCo2CapDacAir[0:tHorz - 1])
@@ -207,7 +208,7 @@ cCostVariableDacUsdtCo2yr = 12
 @variable(m, 0 <= xCo2DacNomYr)
 @variable(m, 0 <= xSorbFreshFlue)
 @variable(m, 0 <= xSorbFreshAir)
-@variable(m, 0 <= xDacCapInv)
+@variable(m, 0 <= xDacCapInv) # capital inv
 
 # CO2 compression
 @variable(m, 0 <= xCo2Comp[0:tHorz - 1])
@@ -217,6 +218,9 @@ cCostVariableDacUsdtCo2yr = 12
 @variable(m, xCo2Vent[0:tHorz - 1])  # This used to be only positive.
 
 @variable(m, xAuxPow[0:tHorz - 1])
+
+
+
 
 # Constraints
 # Gas Turbine
@@ -248,8 +252,7 @@ cCostVariableDacUsdtCo2yr = 12
 
 # 
 @constraint(m, powLpEq[i = 0:tHorz - 1], 
-#            xPowLp[i] == aPowLpEload * yGasTelecLoad[i] + bPowLpEload
-xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
+xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000  # conversion fact
            )
 # 
 @constraint(m, powerSteaEq[i = 0:tHorz - 1], 
@@ -284,8 +287,6 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
 
 # PCC
 # 
-#@constraint(m, co2CapPccEq[i = 0:tHorz - 1], 
-#xCo2CapPcc[i] == aCo2PccCapRate * xCo2Fuel[i])
 @constraint(m, co2CapPccEq[i = 0:tHorz - 1], 
             xCo2CapPcc[i] == aCapRatePcc * xCo2Fuel[i])
 # 
@@ -295,7 +296,6 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
 @constraint(m, co2DacFlueInEq[i = 0:tHorz - 1], 
             xCo2DacFlueIn[i] == xCo2PccOut[i] - vCo2PccVent[i])
 # 
-# @constraint(m, co2CapPccIn[i = 0:tHorz - 1], xCo2CapPcc[i] <= vCapPcc)
 # Dav: Sometimes there is not enough steam, so we have to relax this constraint 
 @constraint(m, steamUsePccEq[i = 0:tHorz - 1], 
             xSteaUsePcc[i] <= aSteaUseRatePcc * xCo2CapPcc[i])
@@ -377,7 +377,6 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
 #
 @constraint(m, co2StorDacAirEq[i = 0:tHorz - 1], 
             xCo2StorDacAir[i] == aSorbCo2CapAir * xSair[i])
-# Money, baby.
 @constraint(m, co2CapDacAirEq[i = 0:tHorz - 1], 
             xCo2CapDacAir[i] == aSorbCo2CapAir * xR1Air[i])
 # 
@@ -399,7 +398,7 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
            )
 
 @constraint(m, daccapinv,
-           xDacCapInv == cCostInvDacUsdtCo2yr * xCo2DacNomYr)
+           xDacCapInv == 50 * (xSorbFreshAir + xSorbFreshFlue) * 1000)
 
 # Co2 Compression
 # 
@@ -419,7 +418,7 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
             + xCo2DacVentFlue[i] - xCo2CapDacAir[i])
 
 
-## Overall
+## Overall power
 #
 #
 @constraint(m, powGrossEq[i = 0:tHorz - 1], 
@@ -440,37 +439,25 @@ xPowLp[i] == xSteaPowLp[i] * aLpSteaToPow / 1000
                               + cCo2TranspPrice * xCo2Comp[i]
                               - pow_price[i+ 1] * xPowOut[i]
                               for i in 0:tHorz - 1
-                             ) + xDacCapInv
+                             ) + xDacCapInv / 20
            )
 
+# declare obj
 @objective(m, Min, eObjfExpr)
 
-set_optimizer(m, Clp.Optimizer)
-set_optimizer_attribute(m, "LogLevel", 3)
-set_optimizer_attribute(m, "PresolveType", 1)
+
+set_optimizer(m, SCIP.Optimizer)
+#set_optimizer_attribute(m, "LogLevel", 3)
+#set_optimizer_attribute(m, "PresolveType", 1)
 
 optimize!(m)
 println(termination_status(m))
 
-#f = open("model.lp", "w")
-#print(f, m)
-#close(f)
+f = open("model.lp", "w")
+print(f, m)
+close(f)
 
-#write_to_file(m, "lp_mk0.mps")
-#format::MOI.FileFormats.FileFormat = MOI.FileFormats.FORMAT_AUTOMATIC
-
-# Raw materials.
-# xFuel
-# sF0
-# sS0
-#
-# penalties
-# vCo2Vent
-
-## vCo2PccVent * 2N
-
-# Actual variables
-# xPowGasTur * 2
+# Dataframes
 
 # Co2 Data Frame
 df_co = DataFrame(Symbol("Co2Fuel") => Float64[], # Pairs.
@@ -611,6 +598,8 @@ for i in 0:tHorz - 1
 end
 
 
+
+# Cost DataFrame
 df_cost = DataFrame(
                     cNG = Float64[],
                     cCo2Em = Float64[],

@@ -11,9 +11,9 @@ import sys
 
 def main():
 
-    hour0 = 5090
-    #hour0 = 150
-    delta_max = 80
+    #hour0 = 5090
+    hour0 = 0
+    delta_max = 80 * 4
     slice = 4
     delta = delta_max / slice
 
@@ -184,7 +184,7 @@ def main():
     # xAuxPowSteaT,
     # PowGross,
     # PowOut,
-    # yGasTelecLoad,
+    # xeLoad,
     # Demand
 
 
@@ -205,6 +205,7 @@ def main():
     fig, ax = plt.subplots()
     ax.plot(r0,
         df["yGasTelecLoad"].iloc[r0], drawstyle="steps-post",
+        #df["xActualLoad"].iloc[r0], drawstyle="steps-post",
         color="lightcoral",
         label="GT Load",
         linewidth=2.5)
@@ -534,16 +535,23 @@ def all_long_loads():
 
     fig, ax = plt.subplots(figsize=(16, 2), dpi=300)
 
-    ax.step(df.index, df["yGasTelecLoad"],
+    #l1 = ax.step(df.index, df["xActualLoad"],
+    l1 = ax.step(df.index, df["yGasTelecLoad"],
         color="lightcoral", label="GT Load")
 
     ax.set_xlabel("Hour")
     ax.set_ylabel("\% Load")
     ax.set_title("Load v. Price")
+    ax.set_ylim([-3, 103])
     axb = ax.twinx()
 
-    axb.plot(dfb.index, dfb["price"],
+    l2 = axb.plot(dfb.index, dfb["price"],
         color="mediumpurple", label="Price USD/MWh")
+    axb.set_ylabel("Price USD/MWh")
+
+    lns = l1 + l2
+    labs = [l.get_label() for l in lns]
+    ax.legend(lns, labs, loc=0)
 
     plt.savefig("GTLoadAlllong.png")
     plt.close(fig)
@@ -566,15 +574,20 @@ def all_long_profit():
     max_profit = max(profitp)
 
     fig, ax = plt.subplots(figsize=(16, 2), dpi=300)
-    ax.bar(profitp.index, profitp, color="cornflowerblue", label="gains")
-    ax.bar(profitn.index, profitn, color="lightcoral", label="losses")
-
+    ax.bar(profitp.index, profitp, color="cornflowerblue", label="surplus")
+    ax.bar(profitn.index, profitn, color="lightcoral", label="deficit")
+    ax.hlines(0.0, min(df.index)-1, max(df.index)+1, color="k", linestyle="dotted")
+    #ax.axis("off")
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    #ax.spines['left'].set_visible(False)
     ax.legend()
-    ax.set_title("Profit")
+    ax.set_title("Value")
     ax.set_xlabel("Hour")
     ax.set_ylabel("USD/hr")
 
-    fig.savefig("profit_all.png")
+    fig.savefig("profit_all.png", transparent=True)
 
 def all_long_halloc():
     df = pd.read_csv("./df_steam.csv")

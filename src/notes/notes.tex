@@ -144,5 +144,185 @@ u \in \mathcal{U}, \; k \in {0,...,T}
 \tilde{w} \left(k \right) = a \; \text{Load} \left(k \right) + b
 \end{gather*}
 
+\subsection{State-dependent transitions}
+
+We encounter the following situation, if transition from mode $m$ to mode $m'$ occurs at time $k$, then transition from mode
+$m''$ to $m$ must occur within the time window $\left[T^{L}_{m, m', m''}, T^{U}_{m, m', m''} \right]$. In other words,
+\begin{equation}
+    Z_{u,m,m'} \left(k\right) \Rightarrow \bigvee_{\theta = T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''}} Z_{u, m'', m}\left(k - \theta\right).
+\end{equation}
+Which can be reformulated as follows:
+\[
+    \neg Z_{u, m, m'} \left(k \right)\vee \bigvee_{\theta = T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''}} Z_{u, m'', m}\left(k - \theta\right).
+\]
+
+\[
+    1 - z_{u, m, m'}\left(k\right) + \sum_{\theta = T^{L}_{m, m', m''}-1}^{T^{U}_{m, m', m''}} z_{u, m'', m}\left(k - \theta\right) \geq 1
+\]
+\[
+    z_{u, m, m'}\left(k\right) \leq \sum_{\theta = T^{L}_{m, m', m''}-1}^{T^{U}_{m, m', m''}} z_{u, m'', m}\left(k - \theta\right)
+\]
+I want to have the opposite situation, i.e., 
+\begin{equation}
+    \neg z_{u,m,m'} \left(k\right) \Leftarrow \bigvee_{\theta = T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''}} z_{u, m'', m}\left(k-\theta \right).
+\end{equation}
+This constraint can be reformulated as follows:
+\[
+    \neg \left[\bigvee_{\theta = T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''}} z_{u, m'', m}\left(k-\theta\right) \right] \vee \neg z_{u, m, m'}\left(k\right)
+\]
+\[
+    \bigwedge_{\theta = T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''}} \left[ \neg z_{u, m'', m}\left(k- \theta \right) \vee \neg z_{u, m, m'}\left(k\right)\right]
+\]
+This last expression is equivalent to the following inequalities:
+\[
+    1-z_{u, m'', m} \left( k - \theta \right) + 1-z_{u, m, m'} \left( k \right) \geq 1, \quad \theta \in \{ T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''} \}
+\]    
+\[
+    z_{u, m'', m} \left( k - \theta \right) + z_{u, m, m'} \left( k \right)  \leq 1, \quad \theta \in \{ T^{L}_{m, m', m''}-1, \dots, T^{U}_{m, m', m''} \}
+\]    
+\subsection{Minimum stay constraint}
+\begin{equation}
+    \bigvee_{\theta = 0, \dots, K_{u,m,m'}^{\text{min}} -1} Z_{u, m, m'}\left(k-\theta \right) \Rightarrow Y_{u, m'} \left( k \right)
+\end{equation}
+\[
+    \neg \left[\bigvee_{\theta = 0, \dots, K_{u,m,m'}^{\text{min}} -1} Z_{u, m, m'}\left(k-\theta \right) \right] \vee Y_{u, m'} \left(k \right)
+\]
+\[
+    \bigwedge_{\theta = 0, \dots, K_{u,m,m'}^{\text{min}} -1} \left( \neg Z_{u, m, m'}\left(k-\theta \right) \vee Y_{u, m'} \left(k \right)
+\right)
+\]
+\[
+    1 - z_{u, m, m'}\left(k-\theta \right) + y_{u, m'} \left(k \right)\geq 1 \quad \theta \in \{ 0, \dots, K_{u,m,m'}^{\text{min}} -1\}  
+\]
+\[
+    z_{u, m, m'}\left(k-\theta \right) \leq  y_{u, m'} \left(k \right) \quad \theta \in \{ 0, \dots, K_{u,m,m'}^{\text{min}} -1\}  
+\]
+\[
+    y_{u, m'} \left(k \right) \geq z_{u, m, m'}\left(k-\theta \right) 
+    \quad \theta \in \{ 0, \dots, K_{u,m,m'}^{\text{min}} -1\}  
+\]
+Which is not exactly what I had in mind but anyways. 
+
+
+Here is the opossite situation:
+\begin{equation}
+    Y_{u, m'} \left( k \right) \Rightarrow \bigvee_{\theta = 0, \dots, K_{c,m,m'}^{\text{min}} -1} z_{u, m, m'}\left(k-\theta \right) 
+\end{equation}
+
+\[
+    \neg 
+    Y_{u, m'} \left( k \right) \vee  \bigvee_{\theta = 0, \dots, K_{c,m,m'}^{\text{min}} -1} z_{u, m, m'}\left(k-\theta \right) 
+\]
+\[
+    1- y_{u, m'} \left( k \right) +  \sum_{\theta = 0}^{K_{c,m,m'}^{\text{min}} -1} z_{u, m, m'}\left(k-\theta \right) \geq 1
+\]
+\[
+    y_{u, m'} \left( k \right) \leq  \sum_{\theta = 0}^{K_{c,m,m'}^{\text{min}} -1} z_{u, m, m'}\left(k-\theta \right)
+\]
+
+Finally, the two sided statement. 
+
+\begin{equation}
+    Y_{u, m} \left( k \right) \Leftrightarrow 
+    \bigvee_{\theta=0, \dots, K^{\min}_{u, m, m'}-1} Z_{u, m, m'} \left(k - \theta \right)
+\end{equation}
+
+\subsection{Switch variables variables}
+(Double Imp)
+\[
+Y_1 \Leftrightarrow Y_2
+\]
+
+\[
+1-y_1 + y_2 \geq 1
+\]
+\[
+y_1 \leq y_2
+\]
+
+\[
+y_1 + 1 - y_2 \geq 1
+\]
+
+\[
+y_1 \geq y_2
+\]
+
+(Actual constraint)
+\[Y_{u, m} \left( k \right) = \left\{ \text{True, False} \right\}\]
+\noindent $Y_{u, m} \left( k \right)=$True if mode $m$ is active at time $k$ for unit $u$  
+
+\[
+    Z_{u, m, m'}\left(k \right) = \left\{\text{True, False}\right\}
+\]
+
+\noindent $Z_{u, m, m'}\left(k \right)=$True if transition from $m$ to $m'$ occurs from time $k-1$ to $k$
+
+\[
+    Y_{u, m} \left( k \right) = \left\{Z_{u, m', m}\left(k\right),\dots  \right\}
+\]
+\[
+    Y_{u, m} \left( k \right) \Leftrightarrow \bigoplus_{m' \in M} Z_{u, m', m}\left(k\right)
+\]
+
+\[
+    \neg Y_{u, m} \left( k \right) \vee \bigoplus_{m' \in M} Z_{u, m', m} \left(k \right)
+\]
+
+\[
+    Y_{1}\left(k\right) \Leftrightarrow   Z_{0, 1} \left( k \right) \oplus Z_{2, 1} \left( k \right)
+\]
+
+\[
+    Y_{0}\left(k-1\right) \Leftrightarrow   Z_{0, 1} \left( k \right) \oplus Z_{0, 2} \left( k \right)
+\]
+
+\[
+    \begin{split}
+        Y_{0}\left(k\right) &\Leftrightarrow   Z_{1, 0} \left( k \right) \oplus Z_{2, 0} \left( k \right) \\
+        Y_{1}\left(k\right) &\Leftrightarrow   Z_{0, 1} \left( k \right) \oplus Z_{2, 1} \left( k \right) \\
+        Y_{2}\left(k\right) &\Leftrightarrow   Z_{0, 2} \left( k \right) \oplus Z_{1, 2} \left( k \right) \\
+    \end{split}
+\]
+
+\[
+    \begin{split}
+        Y_{0}\left(k-1\right) &\Leftrightarrow   Z_{0, 1} \left( k \right) \oplus Z_{0, 2} \left( k \right) \\
+        Y_{1}\left(k-1\right) &\Leftrightarrow   Z_{1, 0} \left( k \right) \oplus Z_{1, 2} \left( k \right) \\ 
+        Y_{2}\left(k-1\right) &\Leftrightarrow   Z_{2, 0} \left( k \right) \oplus Z_{2, 1} \left( k \right) \\ 
+    \end{split}
+\]
+
+\[
+    y_{u,m}\left(k\right) = \sum_{m' \in M} z_{u, m', m} \left( k \right)
+\]
+
+
+\[
+    Y_{u, m} \left( k-1 \right) \Leftrightarrow \bigoplus_{m' \in M} Z_{u, m, m'} \left(k\right)
+\]
+
+\[
+    Y_{u, m} \left( k-1 \right) = \left\{Z_{u, m, m'}\left(k\right), \dots \right\}
+\]
+
+\[
+    y_{u,m}\left(k-1 \right) = \sum_{m' \in M} z_{u, m, m'} \left( k \right)
+\]
+
+\sectin{Sync times}
+I think there must be a separate set of constraints for this.
+
+\begin{equation}
+    \begin{pmatrix}
+        W_{\text{cold}} \\
+        
+    \end{pmatrix}
+    \vee
+    \begin{pmatrix}
+        W_{\text{warm} \\
+    \end{pmatrix}
+\end{equation}
+
 %---------------------------------------------------------------------------
 \end{document}
